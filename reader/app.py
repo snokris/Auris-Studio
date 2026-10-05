@@ -19,7 +19,7 @@ from flask import (
 
 from core.database import init_db, get_conn
 from core.tts_batcher import InteractiveTTSBatcher
-from core.tts_engine import TTSExportPool
+from core.tts_common import AUDIO_CACHE_DIR, TTSExportPool
 from core.tts_router import TTSEngineRouter
 from core import characters as char_module
 from core import llm_characters
@@ -142,8 +142,7 @@ def _startup():
             return
         try:
             init_db()
-            # Old persisted prompts may contain [surprise-oh]/[question-oh],
-            # which ask OmniVoice to vocalize an "oh" before the sentence.
+            # Old persisted prompts may contain obsolete literal expression tags.
             if app_settings.migrate_tts_expression_policy_version():
                 with get_conn() as conn:
                     conn.execute('DELETE FROM tts_segments')
@@ -1641,7 +1640,6 @@ def _store_segments(book_id, chapter_id, segs):
 
 @app.route('/api/audio/<cache_key>')
 def serve_audio(cache_key):
-    from core.tts_engine import AUDIO_CACHE_DIR
     path = os.path.join(AUDIO_CACHE_DIR, f'{cache_key}.wav')
     if not os.path.exists(path):
         return '', 404
@@ -1747,8 +1745,7 @@ def _ensure_audio_for_chapter(
 ):
     """Generate TTS for any segment in segs that has no audio yet, updating DB and segs in-place.
 
-    Pending segments are batched through OmniVoice so full-book export uses the GPU
-    efficiently. Quality is controlled by settings ``tts_num_step``.
+    Pending segments are batched through the active Higgs backend.
     Progress is updated after every finished segment (including mid-batch).
 
     Returns a failure summary ``{'failed': int, 'first_error': str | None}`` so
@@ -1796,20 +1793,7 @@ def _ensure_audio_for_chapter(
     if not pending_items:
         return failure
 
-    try:
-        from core.tts_engine import _tts_num_step_from_settings, _tts_batch_size_from_settings
-        from core.settings import get as _settings_get
-        num_step = _tts_num_step_from_settings()
-        log.info(
-            "Export synth settings: num_step=%s tts_batch_size=%s coalesce_chars=%s "
-            "pending_segments=%d",
-            num_step,
-            _settings_get("tts_batch_size", 0),
-            _settings_get("tts_coalesce_chars", 720),
-            len(pending_items),
-        )
-    except Exception:
-        num_step = 16
+    num_step = None
 
     db_buffer: list[tuple] = []
     result_lock = threading.RLock()
@@ -1853,7 +1837,7 @@ def _ensure_audio_for_chapter(
         def on_item(local_i: int, result: dict) -> None:
             _apply_result(local_i, result)
             # Cooperative Pause/Stop: takes effect after the current
-            # utterance (Higgs) or GPU pack member (OmniVoice).
+            # utterance or MLX batch member.
             _check_export_control(job)
 
         def on_status(msg: str) -> None:
@@ -1945,16 +1929,10 @@ def _ensure_audio_for_chapter(
 
 
 def _start_export_pool(job: dict) -> TTSExportPool:
-    try:
-        requested = int(app_settings.get('tts_export_workers', 0) or 0)
-    except (TypeError, ValueError):
-        requested = 0
-    pool = TTSExportPool(tts, requested_workers=requested)
-    if requested != 1:
-        job['message'] = 'Loading second GPU worker…'
+    pool = TTSExportPool(tts)
     workers = pool.start()
     job['workers'] = workers
-    log.info('Export TTS worker count=%d (requested=%d)', workers, requested)
+    log.info('Export TTS worker count=%d', workers)
     return pool
 
 
@@ -2861,10 +2839,8 @@ def _audio_cache_scan() -> dict:
 
     A file is an orphan when no tts_segment of any book references it —
     typically leftovers from deleted books or from generations made with
-    settings (voice, engine, num_step) that are no longer in use.
+    settings that are no longer in use.
     """
-    from core.tts_engine import AUDIO_CACHE_DIR
-
     referenced: set[str] = set()
     with get_conn() as conn:
         rows = conn.execute(
@@ -3028,8 +3004,6 @@ def save_settings():
     body = request.get_json(force=True) or {}
     previous = app_settings.load()
     allowed = {
-        'tts_engine',
-        'model_source', 'model_path', 'model_repo', 'hf_endpoint',
         'higgs_backend',
         'higgs_model_source', 'higgs_model_path', 'higgs_model_repo',
         'higgs_mlx_model_source', 'higgs_mlx_model_path',
@@ -3040,8 +3014,7 @@ def save_settings():
         'higgs_default_style', 'higgs_default_expressive', 'higgs_prompt_mode',
         'narrator_instruct', 'single_narrator_mode', 'default_speed', 'audio_format',
         'subtitle_format', 'theme', 'font_size', 'font_family', 'line_height',
-        'normalize_text', 'tts_num_step', 'tts_batch_size', 'tts_coalesce_chars',
-        'tts_accel', 'tts_export_workers', 'tts_split_mode', 'tts_align_asr_model',
+        'normalize_text',
         'character_detection_mode', 'llm_base_url', 'llm_api_key', 'llm_model',
         'llm_timeout_sec', 'llm_max_output_tokens', 'llm_max_characters',
         'llm_batch_chars',
@@ -3051,19 +3024,6 @@ def save_settings():
         'audio_mastering', 'export_join_parts', 'export_part_count',
     }
     updates = {k: v for k, v in body.items() if k in allowed}
-    if 'tts_engine' in updates:
-        engine = str(updates['tts_engine'] or 'omnivoice').strip().lower()
-        updates['tts_engine'] = engine if engine in ('omnivoice', 'higgs') else 'omnivoice'
-        if (
-            updates['tts_engine'] != str(previous.get('tts_engine', 'omnivoice')).lower()
-            and _export_exclusive_active()
-        ):
-            # The router hot-swaps engines on the next status() call, which
-            # would kill the engine a running export is generating with.
-            return jsonify({
-                'error': 'An export or chapter generation is running — '
-                         'the TTS engine cannot be switched until it finishes.',
-            }), 409
     if 'higgs_model_source' in updates:
         source = str(updates['higgs_model_source'] or 'download').strip().lower()
         updates['higgs_model_source'] = source if source in ('local', 'download') else 'download'
@@ -3135,46 +3095,8 @@ def save_settings():
         updates['higgs_mlx_hybrid_questions'] = bool(
             updates['higgs_mlx_hybrid_questions']
         )
-    if 'tts_split_mode' in updates:
-        mode = str(updates['tts_split_mode'] or 'align').strip().lower()
-        updates['tts_split_mode'] = mode if mode in ('align', 'chars') else 'align'
-    if 'tts_align_asr_model' in updates:
-        name = str(updates['tts_align_asr_model'] or '').strip()
-        updates['tts_align_asr_model'] = name[:200] or 'openai/whisper-small'
     if 'normalize_text' in updates:
         updates['normalize_text'] = bool(updates['normalize_text'])
-    if 'tts_num_step' in updates:
-        try:
-            step = int(updates['tts_num_step'])
-        except (TypeError, ValueError):
-            step = 16
-        from core.tts_engine import ALLOWED_TTS_NUM_STEPS
-        if step not in ALLOWED_TTS_NUM_STEPS:
-            step = min(ALLOWED_TTS_NUM_STEPS, key=lambda s: abs(s - step))
-        updates['tts_num_step'] = step
-    if 'tts_batch_size' in updates:
-        try:
-            # 0 = auto (VRAM-based). Positive = fixed batch size.
-            updates['tts_batch_size'] = max(0, min(int(updates['tts_batch_size']), 48))
-        except (TypeError, ValueError):
-            updates['tts_batch_size'] = 0
-    if 'tts_coalesce_chars' in updates:
-        try:
-            updates['tts_coalesce_chars'] = max(0, min(int(updates['tts_coalesce_chars']), 4000))
-        except (TypeError, ValueError):
-            updates['tts_coalesce_chars'] = 720
-    if 'tts_accel' in updates:
-        mode = str(updates['tts_accel'] or 'auto').strip().lower()
-        if mode not in ('off', 'auto', 'cuda_graph', 'triton', 'hybrid'):
-            mode = 'auto'
-        updates['tts_accel'] = mode
-    if 'tts_export_workers' in updates:
-        try:
-            updates['tts_export_workers'] = max(
-                0, min(int(updates['tts_export_workers']), 2)
-            )
-        except (TypeError, ValueError):
-            updates['tts_export_workers'] = 0
     if 'mp3_mode' in updates:
         mode = str(updates['mp3_mode'] or 'vbr').strip().lower()
         updates['mp3_mode'] = mode if mode in ('vbr', 'cbr') else 'vbr'
@@ -3219,10 +3141,6 @@ def save_settings():
             updates['export_part_count'] = 1
     result = app_settings.save(updates)
 
-    # Accel mode change requires model reload to re-wrap forward().
-    if 'tts_accel' in updates and updates['tts_accel'] != previous.get('tts_accel'):
-        pass  # user can hit Reload TTS; do not force mid-request
-
     # Engine/model selection is applied on explicit Reload TTS. Keeping the
     # currently resident model alive makes Save Settings safe during playback.
 
@@ -3232,7 +3150,7 @@ def save_settings():
     # old settings. The engine-level cache keys still keep the distinct WAVs
     # separate; this clears only the database pointers used by playback.
     higgs_audio_keys = {
-        'tts_engine', 'higgs_backend', 'higgs_model_source', 'higgs_model_path',
+        'higgs_backend', 'higgs_model_source', 'higgs_model_path',
         'higgs_model_repo', 'higgs_temperature', 'higgs_top_p', 'higgs_top_k',
         'higgs_max_new_tokens', 'higgs_seed', 'higgs_default_emotion',
         'higgs_default_style', 'higgs_default_expressive', 'higgs_prompt_mode',
@@ -3240,13 +3158,10 @@ def save_settings():
         'higgs_mlx_model_repo', 'higgs_mlx_batch_size',
         'higgs_mlx_hybrid_questions',
     }
-    omnivoice_audio_keys = {
-        'tts_num_step',
-        'normalize_text',
-    }
+    shared_audio_keys = {'normalize_text'}
     if any(
         key in updates and updates[key] != previous.get(key)
-        for key in higgs_audio_keys | omnivoice_audio_keys
+        for key in higgs_audio_keys | shared_audio_keys
     ):
         with get_conn() as conn:
             conn.execute('DELETE FROM tts_segments')
@@ -3293,21 +3208,6 @@ def spacy_install():
         cm._nlp = None
         cm._spacy_error = ''
     return jsonify(result)
-
-
-@app.route('/api/settings/model-download', methods=['POST'])
-def start_download():
-    body = request.get_json(force=True) or {}
-    repo_id = body.get('repo_id', app_settings.get('model_repo', 'k2-fsa/OmniVoice'))
-    dest = body.get('dest', app_settings.get('model_path'))
-    hf_endpoint = body.get('hf_endpoint', app_settings.get('hf_endpoint', ''))
-    app_settings.start_model_download(repo_id, dest, hf_endpoint)
-    return jsonify({'ok': True, 'dest': dest})
-
-
-@app.route('/api/settings/model-download/progress')
-def download_progress():
-    return jsonify(app_settings.download_state())
 
 
 @app.route('/api/settings/tts-reload', methods=['POST'])

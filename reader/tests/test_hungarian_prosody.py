@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import patch
 
 from core.enrichment import enrich_chapter
 from core.parser.hungarian_prosody import analyze_hungarian_prosody
@@ -59,36 +58,6 @@ class HungarianProsodyEnrichmentTest(unittest.TestCase):
         )[0]
         self.assertIn("[laughter]", dialogue["enriched_text"])
         self.assertNotIn("[laughter]", narration["enriched_text"])
-
-    def test_benchmark_prosody_suite_uses_enriched_delivery(self):
-        from scripts.benchmark_omnivoice import benchmark_cases
-
-        cases = {case["label"]: case for case in benchmark_cases("prosody")}
-        self.assertLessEqual(cases["question"]["speed"], 0.98)
-        self.assertGreaterEqual(cases["exclamation"]["speed"], 1.03)
-        self.assertLessEqual(cases["whisper"]["speed"], 0.94)
-        self.assertIn("whisper", cases["whisper"]["instruct"])
-        self.assertIn("[sigh]", cases["sigh"]["text"])
-        self.assertEqual(cases["whisper"]["clone_instruct"], "whisper")
-
-    def test_clone_instruct_is_explicitly_opt_in(self):
-        from core.tts_engine import TTSEngine
-
-        engine = TTSEngine()
-        prompt = object()
-        with patch.object(engine, "_get_voice_clone_prompt", return_value=prompt):
-            off = engine._build_generate_kwargs(
-                ["Maradj itt."], "whisper", "voice.wav", "Minta.", [1.0],
-                16, "hu", False,
-            )
-            on = engine._build_generate_kwargs(
-                ["Maradj itt."], "whisper", "voice.wav", "Minta.", [1.0],
-                16, "hu", False, allow_clone_instruct=True,
-            )
-        self.assertIs(off["voice_clone_prompt"], prompt)
-        self.assertNotIn("instruct", off)
-        self.assertEqual(on["instruct"], "whisper")
-
 
 if __name__ == "__main__":
     unittest.main()

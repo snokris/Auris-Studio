@@ -10,7 +10,6 @@ import torch
 from core.cache_identity import render_identity
 from core.higgs_engine import HiggsTTSEngine
 from core.higgs_worker import ReferenceCodeCache
-from core.tts_engine import TTSEngine
 
 
 class FakeModel:
@@ -110,14 +109,6 @@ class ReferenceCacheTests(unittest.TestCase):
         self.assertEqual(path, __import__('pathlib').Path(self.path))
         self.assertEqual(transcript, "Pontos átirat.")
 
-    def test_omnivoice_benchmark_uses_shared_corpus(self):
-        from scripts import benchmark_higgs, benchmark_omnivoice
-
-        self.assertIs(benchmark_omnivoice.CORPUS, benchmark_higgs.CORPUS)
-        self.assertEqual(
-            benchmark_omnivoice.CORPUS_VERSION, benchmark_higgs.CORPUS_VERSION
-        )
-
     def test_synthesis_reuses_prepared_file_and_keeps_protocol(self):
         with patch("core.higgs_engine.AUDIO_CACHE_DIR", self.tmp.name):
             engine = HiggsTTSEngine()
@@ -150,22 +141,21 @@ class ReferenceCacheTests(unittest.TestCase):
             self.assertNotEqual(engine._prepared_reference(self.path), prepared)
 
     def test_audio_keys_separate_reference_and_renderer(self):
-        for engine in (TTSEngine, HiggsTTSEngine):
-            with self.subTest(engine=engine.__name__):
-                def key(variant):
-                    return engine.cache_key("Árvíztűrő 12.", None, self.path, 1.0,
-                                            language="hu", render_variant=variant)
-                first = key("mps/bfloat16")
-                self.assertNotEqual(first, key("mps/float32"))
-                sf.write(self.path, np.zeros(sf.info(self.path).frames + 1), 24000)
-                self.assertNotEqual(first, key("mps/bfloat16"))
+        def key(variant):
+            return HiggsTTSEngine.cache_key(
+                "Árvíztűrő 12.", None, self.path, 1.0,
+                language="hu", render_variant=variant,
+            )
+        first = key("mps/bfloat16")
+        self.assertNotEqual(first, key("mps/float32"))
+        sf.write(self.path, np.zeros(sf.info(self.path).frames + 1), 24000)
+        self.assertNotEqual(first, key("mps/bfloat16"))
 
     def test_mps_defaults_are_engine_specific(self):
         with patch("torch.cuda.is_available", return_value=False), patch(
             "torch.backends.mps.is_available", return_value=True
-        ), patch.dict(os.environ, {"AURIS_STUDIO_HIGGS_MPS_DTYPE": "", "AURIS_STUDIO_MPS_DTYPE": ""}):
+        ), patch.dict(os.environ, {"AURIS_STUDIO_HIGGS_MPS_DTYPE": ""}):
             self.assertEqual(render_identity("higgs"), "mps/bfloat16")
-            self.assertEqual(render_identity("omnivoice"), "mps/float32")
             with patch.dict(os.environ, {"AURIS_STUDIO_HIGGS_MPS_DTYPE": "fp32"}):
                 self.assertEqual(render_identity("higgs"), "mps/float32")
 

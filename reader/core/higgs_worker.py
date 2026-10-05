@@ -1,9 +1,7 @@
 """Persistent Higgs inference worker.
 
-This process intentionally runs with a private Transformers package path.
-OmniVoice is pinned to Transformers 5.3, while the Higgs community adapter
-requires 5.5 or newer; keeping them in separate processes prevents module and
-model-class conflicts when users switch engines.
+This process intentionally runs with a private Transformers package path so
+the Higgs community adapter cannot destabilize the Flask app environment.
 """
 
 from __future__ import annotations
@@ -125,9 +123,8 @@ def main() -> None:
         device = "cuda"
         dtype = torch.bfloat16
     elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-        # Apple Silicon (Metal). Unlike OmniVoice (whose MPS default is
-        # float32 because bfloat16 clipped sentence onsets there), Higgs
-        # was trained and shipped in bfloat16 — it is the model's native
+        # Apple Silicon (Metal). Higgs was trained and shipped in bfloat16,
+        # which is the model's native
         # dtype and roughly halves memory and doubles throughput on Metal.
         # Set AURIS_STUDIO_HIGGS_MPS_DTYPE=fp32 if you hear artifacts.
         device = "mps"

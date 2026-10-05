@@ -1,7 +1,6 @@
 """Isolated MLX-Audio worker for Higgs TTS 3 on Apple Silicon.
 
-The main Auris environment pins a Transformers release for OmniVoice.  MLX-
-Audio needs its own dependency set, so this worker is launched with
+MLX-Audio needs its own dependency set, so this worker is launched with
 ``reader/.mlx_runtime/bin/python`` and communicates through framed JSON lines.
 Audio stays on disk; no waveform or private reference text is serialized into
 logs.

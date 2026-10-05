@@ -27,7 +27,7 @@ from typing import Any
 import numpy as np
 import soundfile as sf
 
-from core.tts_engine import AUDIO_CACHE_DIR, SAMPLE_RATE, _write_audio_atomic, apply_text_normalization
+from core.tts_common import AUDIO_CACHE_DIR, SAMPLE_RATE, _write_audio_atomic, apply_text_normalization
 from core.cache_identity import NORMALIZATION_VERSION, reference_identity, render_identity
 
 log = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ REFERENCE_EXPAND_TARGET_SECONDS = 4.0
 HIGGS_CACHE_VERSION = 8  # v8: reference, renderer and normalization identity
 HIGGS_MODEL_INIT_SEED = 123
 
-_OMNIVOICE_TAGS = {
+_LEGACY_EXPRESSION_TAGS = {
     "laughter": "<|sfx:laughter|>Haha",
     "sigh": "<|sfx:sigh|>Uh",
     "dissatisfaction-hnn": "<|emotion:bitterness|>",
@@ -106,7 +106,7 @@ def _instruct_tokens(instruct: str | None) -> str:
 
 def _translate_inline_tags(text: str) -> str:
     return _BRACKET_TAG_RE.sub(
-        lambda match: _OMNIVOICE_TAGS.get(match.group(1).lower(), ""),
+        lambda match: _LEGACY_EXPRESSION_TAGS.get(match.group(1).lower(), ""),
         text,
     )
 
@@ -444,8 +444,7 @@ class HiggsTTSEngine:
                 apply_text_normalization(text, language, tts_friendly=True)
                 if normalize_text else text
             )
-            # Auris Studio enrichment tags are implementation details of OmniVoice
-            # and must not reach Higgs as literal bracketed words.
+            # Auris Studio enrichment tags must not reach Higgs as literal words.
             return _BRACKET_TAG_RE.sub("", spoken).strip()
 
         spoken = (

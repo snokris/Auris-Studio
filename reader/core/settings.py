@@ -5,9 +5,7 @@ so the app works on Windows, Linux, and macOS without modification.
 """
 
 import json
-import os
 import sys
-import threading
 from pathlib import Path
 
 # reader/ directory
@@ -17,8 +15,6 @@ _REPO_ROOT = _APP_DIR.parent
 
 SETTINGS_FILE = _APP_DIR / 'data' / 'settings.json'
 
-# Default model path = <repo_root>/model_backup/OmniVoice
-_DEFAULT_MODEL_PATH = str(_REPO_ROOT / 'model_backup' / 'OmniVoice')
 _DEFAULT_HIGGS_MODEL_PATH = str(_REPO_ROOT / 'model_backup' / 'Higgs-TTS-3-4B')
 _DEFAULT_HIGGS_MLX_MODEL_PATH = str(
     _REPO_ROOT / 'model_backup' / 'Higgs-TTS-3-4B-MLX'
@@ -28,15 +24,6 @@ DEFAULT_NARRATOR_INSTRUCT = 'male, elderly, low pitch, british accent'
 TTS_EXPRESSION_POLICY_VERSION = 2
 
 DEFAULTS: dict = {
-    # Active TTS engine. Each engine keeps an independent model configuration.
-    'tts_engine': 'higgs',              # 'omnivoice' | 'higgs'
-
-    # OmniVoice model
-    'model_source': 'local',           # 'local' | 'download'
-    'model_path': _DEFAULT_MODEL_PATH,
-    'model_repo': 'k2-fsa/OmniVoice',
-    'hf_endpoint': '',                 # e.g. https://hf-mirror.com for restricted networks
-
     # Higgs TTS 3. Auto selects native MLX on Apple Silicon and the existing
     # Transformers worker elsewhere.
     'higgs_backend': 'auto',            # 'auto' | 'mlx' | 'transformers'
@@ -86,44 +73,8 @@ DEFAULTS: dict = {
     # EN/ZH prefer WeTextProcessing (optional); other languages use num2words.
     'normalize_text': True,
 
-    # Internal migration marker. Version 2 stops treating OmniVoice's literal
-    # "oh/ah" non-verbal tags as silent punctuation/prosody controls.
+    # Internal migration marker for legacy expression-tag handling.
     'tts_expression_policy_version': TTS_EXPRESSION_POLICY_VERSION,
-
-    # How many segments to synthesize in one OmniVoice.generate() call.
-    # 0 = auto from free VRAM (recommended). Larger values keep the GPU busier.
-    # On OOM the engine automatically halves the batch and retries.
-    'tts_batch_size': 0,
-
-    # Merge consecutive same-voice short lines up to this many characters before
-    # synthesis (export/playback batch path). Reduces diffusion-call overhead.
-    # 0 = disabled. ~720 is a strong speed win on audiobooks.
-    'tts_coalesce_chars': 720,
-
-    # How coalesced units are cut back into per-segment clips.
-    # align = Whisper word-timestamp alignment (cuts land in inter-word
-    #         silence; fixes clipped segment ends and cross-boundary
-    #         word fragments). Falls back to chars when unavailable.
-    # chars = legacy proportional character-weight split.
-    'tts_split_mode': 'align',
-
-    # ASR model used ONLY for word-timestamp alignment. The member texts are
-    # already known, so a small model is enough — the DP aligner tolerates
-    # recognition errors. whisper-small is ~10x faster than large-v3-turbo.
-    'tts_align_asr_model': 'openai/whisper-small',
-
-    # OmniVoice iterative decoding steps for playback and export.
-    # Higher = better quality but slower. 16 is a good default; 32 is max quality.
-    'tts_num_step': 16,
-
-    # Inference acceleration: off | auto | cuda_graph | triton | hybrid
-    # cuda_graph = pure PyTorch, works on native Windows (~2–3x).
-    # triton/hybrid need omnivoice-triton (+ triton or triton-windows).
-    'tts_accel': 'auto',
-
-    # Parallel model replicas for export: 0 = auto, 1 = off, 2 = dual worker.
-    # Auto enables two replicas on CUDA cards with at least 20GB VRAM.
-    'tts_export_workers': 0,
 
     # Export defaults
     'audio_format': 'wav',
@@ -172,6 +123,9 @@ def load() -> dict:
         try:
             with open(SETTINGS_FILE, encoding='utf-8') as f:
                 saved = json.load(f)
+            # Keep only settings supported by the current Higgs-only build.
+            # This also removes obsolete engine keys from older settings files.
+            saved = {key: value for key, value in saved.items() if key in DEFAULTS}
             merged = {**DEFAULTS, **saved}
             narrator_instruct = str(merged.get('narrator_instruct') or '').strip().lower()
             if narrator_instruct in {'', LEGACY_NARRATOR_INSTRUCT.lower()}:
@@ -187,7 +141,7 @@ def load() -> dict:
 
 def save(updates: dict) -> dict:
     current = load()
-    current.update(updates)
+    current.update({key: value for key, value in updates.items() if key in DEFAULTS})
     with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(current, f, indent=2)
     return current
@@ -246,67 +200,3 @@ def install_spacy_model() -> dict:
     if result.returncode == 0:
         return {'ok': True, 'message': 'en_core_web_sm installed successfully.'}
     return {'ok': False, 'message': result.stderr or result.stdout}
-
-
-# ── HuggingFace model download ────────────────────────────────────────────────
-
-_dl_state: dict = {'status': 'idle', 'pct': 0, 'message': '', 'dest': ''}
-_dl_lock = threading.Lock()
-
-
-def download_state() -> dict:
-    with _dl_lock:
-        return dict(_dl_state)
-
-
-def _set_dl(status, pct, message, dest=''):
-    with _dl_lock:
-        _dl_state.update({'status': status, 'pct': pct, 'message': message, 'dest': dest})
-
-
-def start_model_download(repo_id: str, dest_dir: str, hf_endpoint: str = '') -> None:
-    """Kick off a background download of a HuggingFace model."""
-    if _dl_state['status'] == 'downloading':
-        return
-    t = threading.Thread(
-        target=_do_download, args=(repo_id, dest_dir, hf_endpoint), daemon=True
-    )
-    t.start()
-
-
-def _do_download(repo_id: str, dest_dir: str, hf_endpoint: str):
-    _set_dl('downloading', 0, f'Connecting to HuggingFace for {repo_id}…', dest_dir)
-    try:
-        if hf_endpoint:
-            os.environ['HF_ENDPOINT'] = hf_endpoint
-
-        from huggingface_hub import list_repo_files, hf_hub_download
-        import huggingface_hub
-
-        _set_dl('downloading', 2, 'Listing repository files…', dest_dir)
-
-        files = list(list_repo_files(repo_id))
-        total = len(files)
-        if total == 0:
-            _set_dl('error', 0, 'No files found in repository.', dest_dir)
-            return
-
-        dest = Path(dest_dir)
-        dest.mkdir(parents=True, exist_ok=True)
-
-        for i, filename in enumerate(files):
-            pct = int((i / total) * 95)
-            _set_dl('downloading', pct, f'Downloading {filename} ({i+1}/{total})…', dest_dir)
-            hf_hub_download(
-                repo_id=repo_id,
-                filename=filename,
-                local_dir=str(dest),
-            )
-
-        _set_dl('done', 100, f'Download complete → {dest_dir}', dest_dir)
-
-        # Persist the new model path in settings
-        save({'model_path': dest_dir, 'model_source': 'local'})
-
-    except Exception as e:
-        _set_dl('error', 0, str(e), dest_dir)

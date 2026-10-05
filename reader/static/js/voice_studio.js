@@ -237,7 +237,7 @@ async function loadCharacters() {
                 <input type="file" accept=".txt,text/plain" onchange="loadRefText(event, ${ch.id})">
               </label>
             </div>
-            <div class="studio-note">A matching transcript gives OmniVoice the best cloning quality. The TXT content is loaded into this field; save it or upload the audio to persist it. Empty uses Whisper auto-transcription.</div>
+            <div class="studio-note">A matching transcript gives Higgs the best cloning quality. The TXT content is loaded into this field; save it or upload the audio to persist it.</div>
             <div class="reference-actions">
               <label class="btn btn-sm btn-ghost file-picker">
                 <span>Choose reference WAV</span>

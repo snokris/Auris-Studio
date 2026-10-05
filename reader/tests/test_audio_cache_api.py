@@ -5,7 +5,6 @@ import unittest
 
 import app as app_module
 from core import database
-from core import tts_engine
 
 
 class AudioCacheApiTest(unittest.TestCase):
@@ -14,11 +13,11 @@ class AudioCacheApiTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.original_db_path = database.DB_PATH
-        self.original_cache_dir = tts_engine.AUDIO_CACHE_DIR
+        self.original_cache_dir = app_module.AUDIO_CACHE_DIR
         database.DB_PATH = os.path.join(self.tmp.name, "reader.db")
         self.cache_dir = os.path.join(self.tmp.name, "audio_cache")
         os.makedirs(self.cache_dir)
-        tts_engine.AUDIO_CACHE_DIR = self.cache_dir
+        app_module.AUDIO_CACHE_DIR = self.cache_dir
         database.init_db()
 
         self.referenced = os.path.join(self.cache_dir, "referenced.wav")
@@ -53,7 +52,7 @@ class AudioCacheApiTest(unittest.TestCase):
 
     def tearDown(self):
         database.DB_PATH = self.original_db_path
-        tts_engine.AUDIO_CACHE_DIR = self.original_cache_dir
+        app_module.AUDIO_CACHE_DIR = self.original_cache_dir
         self.tmp.cleanup()
 
     def test_stats_classify_orphans(self):

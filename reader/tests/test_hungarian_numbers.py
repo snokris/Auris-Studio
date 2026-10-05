@@ -10,7 +10,7 @@ from core.hungarian_numbers import (
     normalize_hungarian,
     ordinal,
 )
-from core.tts_engine import apply_text_normalization
+from core.tts_common import apply_text_normalization
 
 
 class CardinalTests(unittest.TestCase):
@@ -244,7 +244,7 @@ class RomanNumeralTests(unittest.TestCase):
 
 class RoutingTests(unittest.TestCase):
     def test_hungarian_text_never_reaches_the_english_normalizer(self):
-        with patch('core.tts_engine._num2words_fallback') as fallback:
+        with patch('core.tts_common._num2words_fallback') as fallback:
             out = apply_text_normalization('Az Úr 932. esztendejében', 'hu')
         fallback.assert_not_called()
         self.assertIn('kilencszázharminckettedik', out)
