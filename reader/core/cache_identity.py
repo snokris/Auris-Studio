@@ -2,7 +2,7 @@
 
 import os
 
-NORMALIZATION_VERSION = 1
+NORMALIZATION_VERSION = 2
 
 
 def reference_identity(path):

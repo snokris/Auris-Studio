@@ -3030,7 +3030,11 @@ def save_settings():
     allowed = {
         'tts_engine',
         'model_source', 'model_path', 'model_repo', 'hf_endpoint',
+        'higgs_backend',
         'higgs_model_source', 'higgs_model_path', 'higgs_model_repo',
+        'higgs_mlx_model_source', 'higgs_mlx_model_path',
+        'higgs_mlx_model_repo', 'higgs_mlx_batch_size',
+        'higgs_mlx_hybrid_questions',
         'higgs_temperature', 'higgs_top_p', 'higgs_top_k',
         'higgs_max_new_tokens', 'higgs_seed', 'higgs_default_emotion',
         'higgs_default_style', 'higgs_default_expressive', 'higgs_prompt_mode',
@@ -3063,6 +3067,27 @@ def save_settings():
     if 'higgs_model_source' in updates:
         source = str(updates['higgs_model_source'] or 'download').strip().lower()
         updates['higgs_model_source'] = source if source in ('local', 'download') else 'download'
+    if 'higgs_backend' in updates:
+        backend = str(updates['higgs_backend'] or 'auto').strip().lower()
+        updates['higgs_backend'] = (
+            backend if backend in ('auto', 'mlx', 'transformers') else 'auto'
+        )
+        if (
+            updates['higgs_backend']
+            != str(previous.get('higgs_backend', 'auto')).lower()
+            and _export_exclusive_active()
+        ):
+            return jsonify({
+                'error': 'An export or chapter generation is running — '
+                         'the Higgs backend cannot be switched until it finishes.',
+            }), 409
+    if 'higgs_mlx_model_source' in updates:
+        source = str(
+            updates['higgs_mlx_model_source'] or 'download'
+        ).strip().lower()
+        updates['higgs_mlx_model_source'] = (
+            source if source in ('local', 'download') else 'download'
+        )
     if 'higgs_prompt_mode' in updates:
         mode = str(updates['higgs_prompt_mode'] or 'raw').strip().lower()
         updates['higgs_prompt_mode'] = mode if mode in ('raw', 'expressive') else 'raw'
@@ -3098,13 +3123,18 @@ def save_settings():
     for key, default, low, high in (
         ('higgs_top_k', 50, 0, 200),
         ('higgs_max_new_tokens', 1024, 128, 4096),
-        ('higgs_seed', -1, -1, 2147483647),
+        ('higgs_seed', 123, -1, 2147483647),
+        ('higgs_mlx_batch_size', 5, 1, 8),
     ):
         if key in updates:
             try:
                 updates[key] = max(low, min(int(updates[key]), high))
             except (TypeError, ValueError):
                 updates[key] = default
+    if 'higgs_mlx_hybrid_questions' in updates:
+        updates['higgs_mlx_hybrid_questions'] = bool(
+            updates['higgs_mlx_hybrid_questions']
+        )
     if 'tts_split_mode' in updates:
         mode = str(updates['tts_split_mode'] or 'align').strip().lower()
         updates['tts_split_mode'] = mode if mode in ('align', 'chars') else 'align'
@@ -3202,10 +3232,13 @@ def save_settings():
     # old settings. The engine-level cache keys still keep the distinct WAVs
     # separate; this clears only the database pointers used by playback.
     higgs_audio_keys = {
-        'tts_engine', 'higgs_model_source', 'higgs_model_path',
+        'tts_engine', 'higgs_backend', 'higgs_model_source', 'higgs_model_path',
         'higgs_model_repo', 'higgs_temperature', 'higgs_top_p', 'higgs_top_k',
         'higgs_max_new_tokens', 'higgs_seed', 'higgs_default_emotion',
         'higgs_default_style', 'higgs_default_expressive', 'higgs_prompt_mode',
+        'higgs_mlx_model_source', 'higgs_mlx_model_path',
+        'higgs_mlx_model_repo', 'higgs_mlx_batch_size',
+        'higgs_mlx_hybrid_questions',
     }
     omnivoice_audio_keys = {
         'tts_num_step',

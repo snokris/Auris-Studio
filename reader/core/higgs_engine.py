@@ -440,12 +440,18 @@ class HiggsTTSEngine:
             # normalization is orthogonal to the raw/expressive control style
             # and is essential for Hungarian audiobooks. Respects the
             # ``normalize_text`` setting (default on).
-            spoken = apply_text_normalization(text, language) if normalize_text else text
+            spoken = (
+                apply_text_normalization(text, language, tts_friendly=True)
+                if normalize_text else text
+            )
             # Auris Studio enrichment tags are implementation details of OmniVoice
             # and must not reach Higgs as literal bracketed words.
             return _BRACKET_TAG_RE.sub("", spoken).strip()
 
-        spoken = apply_text_normalization(text, language) if normalize_text else text
+        spoken = (
+            apply_text_normalization(text, language, tts_friendly=True)
+            if normalize_text else text
+        )
         spoken = _translate_inline_tags(spoken).strip()
         has_emotion = spoken.startswith("<|emotion:")
         has_style = spoken.startswith("<|style:") or "<|style:" in spoken[:100]

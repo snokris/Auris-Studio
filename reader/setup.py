@@ -330,6 +330,43 @@ def install_higgs_transformers_runtime():
     ok("Higgs Transformers runtime installed (isolated from OmniVoice)")
 
 
+def install_higgs_mlx_runtime(hw_tag):
+    """Install MLX-Audio in its own venv on Apple Silicon.
+
+    Keeping it isolated prevents its newer Transformers dependency from
+    replacing OmniVoice's pinned version in the main application venv.
+    """
+    if hw_tag != "mps":
+        info("Skipping MLX-Audio runtime (Apple Silicon only)")
+        return
+
+    step("Installing isolated Higgs MLX runtime")
+    target = APP_DIR / ".mlx_runtime"
+    runtime_python = target / "bin" / "python"
+    if not runtime_python.is_file():
+        run([sys.executable, "-m", "venv", str(target)])
+
+    cmd = [
+        str(runtime_python),
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+    ]
+    if offline_wheels_available():
+        cmd.append(f"--find-links={WHEELS_DIR}")
+        if STRICT_OFFLINE:
+            cmd.append("--no-index")
+    elif STRICT_OFFLINE:
+        raise RuntimeError(
+            "Offline MLX install requested, but no local wheels were found in: "
+            f"{WHEELS_DIR}"
+        )
+    cmd.append("mlx-audio==0.5.2")
+    run(cmd)
+    ok("Higgs MLX runtime installed (native Apple Silicon backend)")
+
+
 def install_reader_deps():
     step("Installing remaining dependencies from requirements.txt")
     # requirements.txt intentionally omits torch/torchaudio so this step cannot
@@ -425,6 +462,7 @@ def main():
     install_omnivoice_deps()
     install_omnivoice()
     install_higgs_transformers_runtime()
+    install_higgs_mlx_runtime(hw_tag)
     install_reader_deps()
     install_spacy_model()
     print_summary(hw_tag)

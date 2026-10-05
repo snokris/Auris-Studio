@@ -439,10 +439,13 @@
         <div>
           <h3>Auris Studio-integráció</h3>
           <ul class="docs-check-list">
-            <li>A hivatalos képességeket a Transformers-kompatibilis community adapterrel futtatja helyben.</li>
-            <li>Külön <code>.higgs_runtime</code> környezetben használ Transformers 5.13-at.</li>
+            <li>Apple Siliconon a natív MLX hibrid backend az alapértelmezett.</li>
+            <li>A kijelentéseket legfeljebb ötös batchben, a kérdéseket külön referenciaággal készíti.</li>
+            <li>Külön <code>.mlx_runtime</code> környezetben fut, ezért nem ütközik az OmniVoice függőségeivel.</li>
+            <li>Más platformon az Auto backend a Transformers-kompatibilis community adaptert használja.</li>
+            <li>A Transformers fallback külön <code>.higgs_runtime</code> környezetben használ Transformers 5.13-at.</li>
             <li>Nem ütközik az OmniVoice saját Transformers-verziójával.</li>
-            <li>CUDA esetén BF16, CPU-n FP32 betöltés; a modell egy külön worker processzben él.</li>
+            <li>Mindkét Higgs backend külön worker processzben él.</li>
             <li>A Stop megszakítja a futó processzt, majd cache-ből újratölti a modellt.</li>
             <li>A referenciaszöveg a mentett Voice Studio rekordból automatikusan továbbadódik.</li>
           </ul>
@@ -453,11 +456,14 @@
         <table class="settings-guide">
           <thead><tr><th>Higgs beállítás</th><th>Alapérték</th><th>Hatás</th></tr></thead>
           <tbody>
+            <tr><td>Backend</td><td><strong>Auto</strong></td><td>Apple Silicon: MLX hibrid; más platform: Transformers.</td></tr>
+            <tr><td>MLX narration batch</td><td><strong>5</strong></td><td>Ennyi kijelentés készül egyszerre; 1–8 között állítható.</td></tr>
+            <tr><td>Hybrid question reference</td><td><strong>On</strong></td><td>A kérdéseket külön, természetesebb kérdő hanglejtést adó referencia-változattal készíti.</td></tr>
             <tr><td>Temperature</td><td><strong>0.8</strong></td><td>Mintavételi változatosság; magasabban szabadabb, kevésbé stabil lehet.</td></tr>
             <tr><td>Top P</td><td><strong>0.95</strong></td><td>Nucleus sampling valószínűségi tömege; 0 esetén kikapcsolható.</td></tr>
             <tr><td>Top K</td><td><strong>50</strong></td><td>A megtartott legvalószínűbb tokenek száma; 0 esetén kikapcsolható.</td></tr>
             <tr><td>Maximum new tokens</td><td><strong>1024</strong></td><td>A generálható audiótokenek felső korlátja.</td></tr>
-            <tr><td>Seed</td><td><strong>-1</strong></td><td>-1 véletlen; rögzített egész szám ismételhető A/B összehasonlításhoz.</td></tr>
+            <tr><td>Seed</td><td><strong>123</strong></td><td>Az elfogadott hibrid A/B beállítása; -1 véletlen.</td></tr>
             <tr><td>Prompt mode</td><td><strong>Raw</strong></td><td>Raw: tiszta szöveg. Expressive: Auris Studio-normalizálás és automatikus vezérlőtokenek.</td></tr>
           </tbody>
         </table>
@@ -469,14 +475,14 @@
           <p>
             A megtisztított könyvszöveget extra előtagok nélkül adja át. Nem
             alkalmaz automatikus érzelmet vagy voice-design akcentust. Magyar
-            kiejtés ellenőrzéséhez és a referenciaalkalmazással való
-            összehasonlításhoz ezt használd.
+            számok, dátumok, időpontok és pénzösszegek beszédbarát kiírása Raw
+            módban is kötelezően lefut. Magyar kiejtéshez ezt használd.
           </p>
         </div>
         <div>
           <h3>Expressive mód</h3>
           <p>
-            Alkalmazhat számnormalizálást, alapérzelmet, stílust,
+            A közös számnormalizálás mellett alapérzelmet, stílust,
             expresszivitást, sebesség-, pitch-, whisper-, szünet- és
             hangeffekt-tokeneket. A tokenek kreatív vezérlést adnak, de
             minden könyvnél érdemes rövid preview-val ellenőrizni őket.

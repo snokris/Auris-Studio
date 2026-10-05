@@ -131,6 +131,39 @@ def cardinal(n: int, before_noun: bool = False) -> str:
     return word
 
 
+def _tts_cardinal(n: int, before_noun: bool = False) -> str:
+    """Cardinal with subtle word boundaries that help multilingual TTS.
+
+    Hungarian spelling joins most number components.  Multilingual acoustic
+    models can lose syllables in a token such as
+    ``ezerkilencszázharminckettő``; spaces at scale/hundred boundaries retain
+    the same spoken wording while giving the tokenizer stable units.
+    """
+    n = int(n)
+    if n < 0:
+        return 'mínusz ' + _tts_cardinal(-n, before_noun)
+
+    if n < 100:
+        word = _below_hundred(n)
+    elif n < 1000:
+        hundreds, rest = divmod(n, 100)
+        head = 'száz' if hundreds == 1 else _multiplier(hundreds) + 'száz'
+        word = head + (f' {_tts_cardinal(rest)}' if rest else '')
+    else:
+        word = ''
+        for value, name in _SCALES:
+            if n < value:
+                continue
+            count, rest = divmod(n, value)
+            head = name if value == 1000 and count == 1 else _multiplier(count) + name
+            word = head + (f' {_tts_cardinal(rest)}' if rest else '')
+            break
+
+    if before_noun and word.endswith('kettő'):
+        word = word[:-len('kettő')] + 'két'
+    return word
+
+
 # The last element of a compound carries the ordinal ending; everything in
 # front of it stays a cardinal ("ezerkilencszáz" + "harminc" + "kettedik").
 _ORDINAL_ENDINGS = sorted(
@@ -150,6 +183,13 @@ _ORDINAL_ENDINGS = sorted(
 )
 
 
+def _ordinal_word(word: str) -> str:
+    for ending, replacement in _ORDINAL_ENDINGS:
+        if word.endswith(ending):
+            return word[:-len(ending)] + replacement
+    return word + 'dik'
+
+
 def ordinal(n: int) -> str:
     """``932`` → "kilencszázharminckettedik"."""
     n = int(n)
@@ -157,16 +197,25 @@ def ordinal(n: int) -> str:
         return 'első'
     if n == 2:
         return 'második'
-    word = cardinal(n)
-    for ending, replacement in _ORDINAL_ENDINGS:
-        if word.endswith(ending):
-            return word[:-len(ending)] + replacement
-    return word + 'dik'
+    return _ordinal_word(cardinal(n))
 
 
-def _day_stem(n: int) -> str:
+def _tts_ordinal(n: int) -> str:
+    """Ordinal equivalent of :func:`_tts_cardinal` for acoustic prompts."""
+    n = int(n)
+    if n in (1, 2):
+        return ordinal(n)
+    spoken = _tts_cardinal(n)
+    head, separator, tail = spoken.rpartition(' ')
+    converted = _ordinal_word(tail)
+    return f'{head}{separator}{converted}' if separator else converted
+
+
+def _day_stem(n: int, tts_friendly: bool = False) -> str:
     """The stem a date suffix attaches to: "elsej-én", "ötödik-én"."""
-    return 'elsej' if int(n) == 1 else ordinal(n)
+    if int(n) == 1:
+        return 'elsej'
+    return _tts_ordinal(n) if tts_friendly else ordinal(n)
 
 
 def _harmony_vowel(word: str) -> str:
@@ -179,11 +228,11 @@ def _harmony_vowel(word: str) -> str:
     return 'e'
 
 
-def day_of_month(n: int) -> str:
+def day_of_month(n: int, tts_friendly: bool = False) -> str:
     """``5`` → "ötödike" — how a date is read when nothing follows it."""
     if int(n) == 1:
         return 'elseje'
-    word = ordinal(n)
+    word = _tts_ordinal(n) if tts_friendly else ordinal(n)
     return word + _harmony_vowel(word)
 
 
@@ -200,8 +249,10 @@ _SUFFIX_STEMS = (('három', 'hárm'), ('kettő', 'kett'), ('ezer', 'ezr'),
                  ('hét', 'het'))
 
 
-def _cardinal_with_suffix(n: int, suffix: str) -> str:
-    word = cardinal(n)
+def _cardinal_with_suffix(
+    n: int, suffix: str, tts_friendly: bool = False
+) -> str:
+    word = _tts_cardinal(n) if tts_friendly else cardinal(n)
     if suffix[:1] in _VOWEL_SUFFIX_START:
         for ending, stem in _SUFFIX_STEMS:
             if word.endswith(ending):
@@ -259,6 +310,8 @@ _DATE_MONTH_DAY = re.compile(rf'\b({_MONTH_RE})\s+(\d{{1,2}})\.(?:-({_SUFFIX_RE}
 _DATE_YEAR_MONTH = re.compile(rf'\b(\d{{3,4}})\.\s+({_MONTH_RE})\b')
 _ROMAN = re.compile(r'\b([IVXLCDM]{2,})\.(?=\s+(\w+))')
 _TIME = re.compile(rf'\b(\d{{1,2}}):(\d{{2}})(?:-({_SUFFIX_RE}))?')
+_DOTTED_TIME = re.compile(rf'\b(\d{{1,2}})\.(\d{{2}})-({_SUFFIX_RE})')
+_CURRENCY = re.compile(rf'\b(\d+)\s*(?:Ft|HUF)(?:-?({_SUFFIX_RE}))?\b', re.IGNORECASE)
 _PERCENT = re.compile(rf'(\d+)(?:,(\d+))?\s*%(?:-?({_SUFFIX_RE}))?')
 _DEGREE = re.compile(rf'(-?\d+)\s*°\s*C(?:-?({_SUFFIX_RE}))?\b')
 _SUFFIXED = re.compile(rf'\b(\d+)-({_SUFFIX_RE})')
@@ -289,32 +342,35 @@ def _expand_roman(match: re.Match) -> str:
     return match.group()
 
 
-def _date_suffix(day: int, suffix: str | None) -> str:
+def _date_suffix(
+    day: int, suffix: str | None, tts_friendly: bool = False
+) -> str:
     if not suffix:
-        return day_of_month(day)
-    return _attach(_day_stem(day), suffix)
+        return day_of_month(day, tts_friendly)
+    return _attach(_day_stem(day, tts_friendly), suffix)
 
 
-def _number_suffix(n: int, suffix: str) -> str:
+def _number_suffix(n: int, suffix: str, tts_friendly: bool = False) -> str:
     """A hyphenated suffix decides whether this is a date or a plain number.
 
     ``-án``/``-én``/``-jén`` only ever appear on a day of the month, so
     ``5-én`` is "ötödikén" while ``1932-ben`` stays "ezerkilencszázharminckettőben".
     """
     if suffix.startswith('ér'):  # "5-ért" is a plain number, not a date
-        return _cardinal_with_suffix(n, suffix)
+        return _cardinal_with_suffix(n, suffix, tts_friendly)
     if suffix[:1] in ('á', 'é', 'j'):
-        return _attach(_day_stem(n), suffix)
-    return _cardinal_with_suffix(n, suffix)
+        return _attach(_day_stem(n, tts_friendly), suffix)
+    return _cardinal_with_suffix(n, suffix, tts_friendly)
 
 
-def _expand_time(match: re.Match) -> str:
+def _expand_time(match: re.Match, tts_friendly: bool = False) -> str:
     hour, minute = int(match.group(1)), int(match.group(2))
     suffix = match.group(3) or ''
+    number = _tts_cardinal if tts_friendly else cardinal
     if minute:
-        spoken = f'{cardinal(hour, before_noun=True)} óra {cardinal(minute)} perc'
+        spoken = f'{number(hour, before_noun=True)} óra {number(minute)} perc'
     else:
-        spoken = f'{cardinal(hour, before_noun=True)} óra'
+        spoken = f'{number(hour, before_noun=True)} óra'
     return _cardinal_tail(spoken, suffix) if suffix else spoken
 
 
@@ -325,18 +381,27 @@ def _cardinal_tail(spoken: str, suffix: str) -> str:
     return f'{head} {glued}' if head else glued
 
 
-def _expand_degree(match: re.Match) -> str:
+def _expand_currency(match: re.Match, tts_friendly: bool = False) -> str:
+    number = _tts_cardinal if tts_friendly else cardinal
+    spoken = f'{number(int(match.group(1)), before_noun=True)} forint'
+    suffix = match.group(2)
+    return _cardinal_tail(spoken, suffix) if suffix else spoken
+
+
+def _expand_degree(match: re.Match, tts_friendly: bool = False) -> str:
     """``21 °C`` is "huszonegy Celsius-fok"; ``21 °C-ban`` keeps its suffix."""
-    spoken = f'{cardinal(int(match.group(1)))} Celsius-fok'
+    number = _tts_cardinal if tts_friendly else cardinal
+    spoken = f'{number(int(match.group(1)))} Celsius-fok'
     suffix = match.group(2)
     return _attach(spoken, suffix) if suffix else spoken
 
 
-def _expand_percent(match: re.Match) -> str:
+def _expand_percent(match: re.Match, tts_friendly: bool = False) -> str:
     whole, fraction, suffix = match.group(1), match.group(2), match.group(3)
-    spoken = cardinal(int(whole), before_noun=True)
+    number = _tts_cardinal if tts_friendly else cardinal
+    spoken = number(int(whole), before_noun=True)
     if fraction:
-        spoken = f'{cardinal(int(whole))} egész {cardinal(int(fraction))}'
+        spoken = f'{number(int(whole))} egész {number(int(fraction))}'
     spoken = f'{spoken} százalék'
     return _cardinal_tail(spoken, suffix) if suffix else spoken
 
@@ -350,25 +415,31 @@ def _counts_the_next_word(text: str, end: int) -> bool:
     return match.group(1) not in _NOT_COUNTED
 
 
-def _expand_ordinal_or_sentence_end(text: str):
+def _expand_ordinal_or_sentence_end(text: str, tts_friendly: bool = False):
     """``932. esztendejében`` is an ordinal; ``Volt 932. Aztán…`` is not."""
     def repl(match: re.Match) -> str:
         following = match.group(2)
         value = int(match.group(1))
+        number = _tts_cardinal if tts_friendly else cardinal
+        position = _tts_ordinal if tts_friendly else ordinal
         if 1000 <= value <= 2999 and following.lower() in _YEAR_PARTS:
             # A year in front of a season or a part of the year keeps its
             # cardinal form: "1932. nyarán" is "ezerkilencszázharminckettő nyarán".
-            return cardinal(value)
+            return number(value)
         if following[:1].islower() or following.lower() in _ORDINAL_NOUNS:
-            return ordinal(value)
+            return position(value)
         # A capitalised word after the period reads as a new sentence, so the
         # number itself is a plain cardinal and the period stays a full stop.
-        return f'{cardinal(value)}.'
+        return f'{number(value)}.'
     return _ORDINAL.sub(repl, text)
 
 
-def normalize_hungarian(text: str) -> str:
-    """Replace every digit group in ``text`` with its spoken Hungarian form."""
+def normalize_hungarian(text: str, *, tts_friendly: bool = False) -> str:
+    """Replace digits with Hungarian words.
+
+    ``tts_friendly`` inserts boundaries inside long number compounds for
+    multilingual speech models without changing the words themselves.
+    """
     if not text:
         return text
     if not any(char.isdigit() for char in text) and not _ROMAN.search(text):
@@ -380,31 +451,42 @@ def normalize_hungarian(text: str) -> str:
     out = _THOUSAND_GROUPED.sub(join_groups, text)
 
     out = _DATE_FULL.sub(
-        lambda m: f'{cardinal(int(m.group(1)))} {m.group(2)} '
-                  f'{_date_suffix(int(m.group(3)), m.group(4))}',
+        lambda m: f'{(_tts_cardinal if tts_friendly else cardinal)(int(m.group(1)))} '
+                  f'{m.group(2)} '
+                  f'{_date_suffix(int(m.group(3)), m.group(4), tts_friendly)}',
         out,
     )
     out = _DATE_MONTH_DAY.sub(
-        lambda m: f'{m.group(1)} {_date_suffix(int(m.group(2)), m.group(3))}',
+        lambda m: f'{m.group(1)} '
+                  f'{_date_suffix(int(m.group(2)), m.group(3), tts_friendly)}',
         out,
     )
     out = _DATE_YEAR_MONTH.sub(
-        lambda m: f'{cardinal(int(m.group(1)))} {m.group(2)}', out
+        lambda m: f'{(_tts_cardinal if tts_friendly else cardinal)(int(m.group(1)))} '
+                  f'{m.group(2)}',
+        out,
     )
 
     out = _ROMAN.sub(_expand_roman, out)
 
-    out = _TIME.sub(_expand_time, out)
-    out = _PERCENT.sub(_expand_percent, out)
-    out = _DEGREE.sub(_expand_degree, out)
-    out = _SUFFIXED.sub(lambda m: _number_suffix(int(m.group(1)), m.group(2)), out)
-    out = _expand_ordinal_or_sentence_end(out)
+    out = _DOTTED_TIME.sub(lambda m: _expand_time(m, tts_friendly), out)
+    out = _TIME.sub(lambda m: _expand_time(m, tts_friendly), out)
+    out = _CURRENCY.sub(lambda m: _expand_currency(m, tts_friendly), out)
+    out = _PERCENT.sub(lambda m: _expand_percent(m, tts_friendly), out)
+    out = _DEGREE.sub(lambda m: _expand_degree(m, tts_friendly), out)
+    out = _SUFFIXED.sub(
+        lambda m: _number_suffix(int(m.group(1)), m.group(2), tts_friendly), out
+    )
+    out = _expand_ordinal_or_sentence_end(out, tts_friendly)
     out = _DECIMAL.sub(
-        lambda m: f'{cardinal(int(m.group(1)))} egész {cardinal(int(m.group(2)))}',
+        lambda m: f'{(_tts_cardinal if tts_friendly else cardinal)(int(m.group(1)))} '
+                  f'egész {(_tts_cardinal if tts_friendly else cardinal)(int(m.group(2)))}',
         out,
     )
     out = _INTEGER.sub(
-        lambda m: cardinal(int(m.group()), _counts_the_next_word(out, m.end())),
+        lambda m: (_tts_cardinal if tts_friendly else cardinal)(
+            int(m.group()), _counts_the_next_word(out, m.end())
+        ),
         out,
     )
     return out

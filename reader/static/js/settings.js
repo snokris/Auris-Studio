@@ -34,6 +34,21 @@ async function loadSettings() {
   toggleSource(src);
 
   // Higgs model and generation
+  const higgsBackend = _settings.higgs_backend || 'auto';
+  document.getElementById('higgs-backend').value = higgsBackend;
+  const higgsMlxSrc = _settings.higgs_mlx_model_source || 'download';
+  const higgsMlxSrcRadio = document.querySelector(
+    `input[name="higgs_mlx_model_source"][value="${higgsMlxSrc}"]`
+  );
+  if (higgsMlxSrcRadio) higgsMlxSrcRadio.checked = true;
+  document.getElementById('higgs-mlx-model-path').value =
+    _settings.higgs_mlx_model_path || '';
+  document.getElementById('higgs-mlx-model-repo').value =
+    _settings.higgs_mlx_model_repo || 'bosonai/higgs-tts-3-4b';
+  document.getElementById('higgs-mlx-batch-size').value =
+    _settings.higgs_mlx_batch_size ?? 5;
+  document.getElementById('higgs-mlx-hybrid-questions').checked =
+    _settings.higgs_mlx_hybrid_questions !== false;
   const higgsSrc = _settings.higgs_model_source || 'download';
   const higgsSrcRadio = document.querySelector(
     `input[name="higgs_model_source"][value="${higgsSrc}"]`
@@ -46,7 +61,7 @@ async function loadSettings() {
   document.getElementById('higgs-top-p').value = _settings.higgs_top_p ?? 0.95;
   document.getElementById('higgs-top-k').value = _settings.higgs_top_k ?? 50;
   document.getElementById('higgs-max-new-tokens').value = _settings.higgs_max_new_tokens ?? 1024;
-  document.getElementById('higgs-seed').value = _settings.higgs_seed ?? -1;
+  document.getElementById('higgs-seed').value = _settings.higgs_seed ?? 123;
   document.getElementById('higgs-prompt-mode').value =
     _settings.higgs_prompt_mode || 'raw';
   document.getElementById('higgs-default-emotion').value =
@@ -56,6 +71,8 @@ async function loadSettings() {
   document.getElementById('higgs-default-expressive').value =
     _settings.higgs_default_expressive || 'none';
   toggleHiggsSource(higgsSrc);
+  toggleHiggsMlxSource(higgsMlxSrc);
+  toggleHiggsBackend(higgsBackend);
   toggleHiggsPromptMode(_settings.higgs_prompt_mode || 'raw');
 
   // MULTI_VOICE: a többszereplős narráció ki van kapcsolva (app.py:
@@ -284,9 +301,27 @@ document.querySelectorAll('input[name="higgs_model_source"]').forEach(el => {
   el.addEventListener('change', () => toggleHiggsSource(el.value));
 });
 
+document.querySelectorAll('input[name="higgs_mlx_model_source"]').forEach(el => {
+  el.addEventListener('change', () => toggleHiggsMlxSource(el.value));
+});
+
+function toggleHiggsBackend(backend) {
+  document.querySelectorAll('.higgs-mlx-config').forEach(el =>
+    el.classList.toggle('hidden', backend === 'transformers')
+  );
+  document.querySelectorAll('.higgs-transformers-config').forEach(el =>
+    el.classList.toggle('hidden', backend === 'mlx')
+  );
+}
+
 function toggleHiggsSource(src) {
   document.getElementById('higgs-panel-local').classList.toggle('hidden', src !== 'local');
   document.getElementById('higgs-panel-download').classList.toggle('hidden', src !== 'download');
+}
+
+function toggleHiggsMlxSource(src) {
+  document.getElementById('higgs-mlx-panel-local').classList.toggle('hidden', src !== 'local');
+  document.getElementById('higgs-mlx-panel-download').classList.toggle('hidden', src !== 'download');
 }
 
 function toggleHiggsPromptMode(mode) {
@@ -335,6 +370,27 @@ async function checkHiggsPath() {
     hint.className = 'status-hint status-warn';
   } else {
     hint.textContent = 'Valid model directory.';
+    hint.className = 'status-hint status-ok';
+  }
+}
+
+async function checkHiggsMlxPath() {
+  const path = document.getElementById('higgs-mlx-model-path').value.trim();
+  const hint = document.getElementById('higgs-mlx-path-status');
+  hint.textContent = 'Checking…';
+  const r = await fetch('/api/settings/check-model-path', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ path }),
+  });
+  const d = await r.json();
+  if (!d.exists) {
+    hint.textContent = 'Path does not exist.';
+    hint.className = 'status-hint status-error';
+  } else if (!d.has_config) {
+    hint.textContent = 'Directory exists but no config.json found.';
+    hint.className = 'status-hint status-warn';
+  } else {
+    hint.textContent = 'Valid MLX model directory.';
     hint.className = 'status-hint status-ok';
   }
 }
@@ -492,15 +548,27 @@ async function saveSettings() {
   const higgsSrc = document.querySelector(
     'input[name="higgs_model_source"]:checked'
   )?.value || 'download';
+  const higgsMlxSrc = document.querySelector(
+    'input[name="higgs_mlx_model_source"]:checked'
+  )?.value || 'download';
   const payload = {
     tts_engine:       document.getElementById('tts-engine').value || 'omnivoice',
     model_source:      src,
     model_path:        document.getElementById('model-path').value.trim(),
     model_repo:        document.getElementById('model-repo').value.trim(),
     hf_endpoint:       document.getElementById('hf-endpoint').value.trim(),
+    higgs_backend:     document.getElementById('higgs-backend').value || 'auto',
     higgs_model_source: higgsSrc,
     higgs_model_path:  document.getElementById('higgs-model-path').value.trim(),
     higgs_model_repo:  document.getElementById('higgs-model-repo').value.trim(),
+    higgs_mlx_model_source: higgsMlxSrc,
+    higgs_mlx_model_path: document.getElementById('higgs-mlx-model-path').value.trim(),
+    higgs_mlx_model_repo: document.getElementById('higgs-mlx-model-repo').value.trim(),
+    higgs_mlx_batch_size: parseInt(
+      document.getElementById('higgs-mlx-batch-size').value, 10
+    ) || 5,
+    higgs_mlx_hybrid_questions:
+      document.getElementById('higgs-mlx-hybrid-questions').checked,
     higgs_temperature: parseFloat(document.getElementById('higgs-temperature').value),
     higgs_top_p:       parseFloat(document.getElementById('higgs-top-p').value),
     higgs_top_k:       parseInt(document.getElementById('higgs-top-k').value, 10),
