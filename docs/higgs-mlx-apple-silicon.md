@@ -72,13 +72,14 @@ legtermészetesebb. A kettő technikailag keverhető, mert nem két külön mode
 hanem ugyanannak a Higgs–MLX motornak két generálási útja:
 
 - a kijelentések az eredeti referenciával, batchben készülnek;
-- a kérdőjellel végződő mondatok külön, a rövidített referenciával készülnek;
+- a kérdőjellel végződő mondatok külön, a narrátorhangból készített
+  kérdésreferenciával készülnek;
 - a kimenetek az eredeti mondatsorrendben kerülnek vissza.
 
-Az ötmondatos helyi hibrid próba kijelentés-batche 9,48 másodperc, a külön
-kérdés 1,44 másodperc volt. A 10,92 másodperces generálási összidő csak
-1,90 másodperccel lassabb a teljes C batchnél, és közel hatszor gyorsabb a
-jelenlegi Higgs/MPS soros útjánál.
+Az eredeti ötmondatos helyi hibrid próba kijelentés-batche 9,48 másodperc,
+a külön kérdés 1,44 másodperc volt. Ez a mérés még a közvetlen, rövidített
+referenciás útvonalat használta; az alábbi későbbi kérdésreferencia-javítás
+első elkészítésének idejét nem tartalmazza.
 
 Ugyanebben a körben javult a Higgs magyar számkiejtési bemenete:
 
@@ -99,8 +100,14 @@ tagolás csak a Higgs akusztikai promptjában él.
   ezért az MLX újabb függőségei nem változtatják meg az alkalmazás környezetét.
 - A referencia eredeti fájlja soha nem módosul. A származtatott 24 kHz-es mono
   WAV az `audio_cache/higgs_mlx_refs/` könyvtárban, tartalomazonosító alatt él.
+- Magyar kérdésnél ebből a Higgs egyszer létrehozza a „Vajon visszatér még?”
+  referenciahangot, és azonos átirattal újrahasználja az
+  `audio_cache/higgs_mlx_question_refs/` könyvtárból. Az első kérdés ezért
+  lassabb lehet; a későbbiek nem ismétlik meg ezt a lépést.
 - A narration batch mérete 1–8 között állítható; a bevizsgált alapérték 5.
-- A 123-as seed reprodukálja az elfogadott A/B mintát.
+- A kérdésreferencia rögzített 7-es, a végső generálás alapértelmezett 123-as
+  seedet használ. A közvetlen B referencia egyetlen rövid kérdésnél sikerült;
+  a hosszabb alkalmazásbeli kérdés miatt vezettük be az új kérdésreferenciát.
 - A teljes alkalmazáspróbában a modell 4,27 másodperc alatt betöltött, a normál
   preview és egy valós kérdés generálása is sikeres volt.
-- A végleges teljes tesztkészlet 328/328 zöld.
+- A kérdésreferenciás változat teljes automatizált tesztkészlete 288/288 zöld.
