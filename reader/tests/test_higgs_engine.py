@@ -10,7 +10,7 @@ from core.higgs_engine import (
     _prepare_reference,
     _translate_inline_tags,
 )
-from core.tts_router import TTSEngineRouter
+from core.tts_router import TTSEngineRouter, selected_engine_key
 
 
 class HiggsPromptTests(unittest.TestCase):
@@ -92,6 +92,29 @@ class HiggsPromptTests(unittest.TestCase):
         self.assertIn("tizenhatezer", prompt)
         self.assertNotIn("16000", prompt)
 
+    def test_raw_prompt_uses_speech_friendly_hungarian_numbers(self):
+        engine = HiggsTTSEngine()
+        with patch(
+            "core.higgs_engine._setting",
+            side_effect=lambda key, default: (
+                "raw" if key == "higgs_prompt_mode" else default
+            ),
+        ):
+            prompt = engine._prompt(
+                "1932. március 5-én a 932. oldalon 3500 Ft volt, "
+                "és 7.30-kor indult.",
+                None,
+                1.0,
+                "hu",
+                True,
+            )
+        self.assertEqual(
+            prompt,
+            "ezer kilencszáz harminckettő március ötödikén a "
+            "kilencszáz harminckettedik oldalon háromezer ötszáz "
+            "forint volt, és hét óra harminc perckor indult.",
+        )
+
     def test_raw_prompt_leaves_numbers_when_normalization_off(self):
         engine = HiggsTTSEngine()
         with patch(
@@ -125,11 +148,31 @@ class HiggsPromptTests(unittest.TestCase):
 
 
 class RouterTests(unittest.TestCase):
+    def test_auto_backend_uses_mlx_on_apple_silicon(self):
+        with (
+            patch("core.tts_router.selected_engine_name", return_value="higgs"),
+            patch("core.settings.get", return_value="auto"),
+            patch("core.tts_router.platform.system", return_value="Darwin"),
+            patch("core.tts_router.platform.machine", return_value="arm64"),
+        ):
+            self.assertEqual(selected_engine_key(), "higgs-mlx")
+
     def test_router_selects_higgs_without_importing_it_into_omnivoice_engine(self):
-        with patch("core.tts_router.selected_engine_name", return_value="higgs"):
+        with patch(
+            "core.tts_router.selected_engine_key",
+            return_value="higgs-transformers",
+        ):
             router = TTSEngineRouter()
         self.assertEqual(router.engine_name, "higgs")
         self.assertIsInstance(router._engine, HiggsTTSEngine)
+
+    def test_router_can_select_native_mlx_higgs(self):
+        from core.higgs_mlx_engine import HiggsMLXEngine
+
+        with patch("core.tts_router.selected_engine_key", return_value="higgs-mlx"):
+            router = TTSEngineRouter()
+        self.assertEqual(router.engine_name, "higgs")
+        self.assertIsInstance(router._engine, HiggsMLXEngine)
 
 
 class HiggsLifecycleTests(unittest.TestCase):

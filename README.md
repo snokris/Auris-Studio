@@ -7,6 +7,8 @@ Ez a repó a [mp3pintyo/Auris](https://github.com/mp3pintyo/Auris) forkja, amely
 ## Képernyőképek
 
 Fejlesztői mérés: [Magyar Higgs A/B próba és referencia-cache](docs/higgs-benchmark.md).
+OmniVoice fejlesztés: [magyar prozódia és 16/24/32 A/B](docs/omnivoice-hungarian-prosody.md).
+Apple Silicon backend: [Higgs TTS 3 + MLX hibrid integráció és mérések](docs/higgs-mlx-apple-silicon.md).
 
 ### Library
 ![Library](assets/library.png)
@@ -40,7 +42,10 @@ bash reader/run.sh
 
 Ezután a böngészőben: **http://127.0.0.1:7860**
 
-Első használatkor a Settings oldalon töltsd le az OmniVoice-modellt (~3 GB), és állítsd az exportformátumot MP3-ra. A modellek betöltésekor a Terminálban ellenőrizhető az eszköz: `on mps (torch.float32)` (OmniVoice), illetve `device=mps, dtype=torch.bfloat16` (Higgs).
+Az installer Apple Siliconon külön `.mlx_runtime` környezetet készít. Első
+Higgs-indításkor az MLX modell és a codec a Hugging Face cache-be töltődik;
+helyi snapshot is választható a Settingsben. A Backend maradhat **Auto**
+értéken: M-szérián MLX-et, más platformon a Transformers útvonalat választja.
 
 ## Használat röviden
 
@@ -97,17 +102,26 @@ A Beállítások hangcache-kártyája mutatja a cache méretét, kitakarítja az
 
 ## TTS-motorok
 
-| | OmniVoice (alapértelmezett) | Higgs TTS 3 — 4B |
+| | OmniVoice | Higgs TTS 3 — 4B (alapértelmezett) |
 |---|---|---|
 | Magyar támogatás | igen (600+ nyelv) | igen, kiemelt |
 | Erőssége | gyors, kis memóriaigény | kifejezőbb prozódia |
 | Licenc | nyílt | kutatási/nem kereskedelmi* |
+
+Apple Siliconon a Higgs natív MLX hibrid backendje az alapértelmezett. A
+kijelentéseket legfeljebb ötös batchben készíti, a kérdéseket pedig külön, a
+jobb kérdő hanglejtést adó rövidített referencia-változattal. A helyi mérésben
+közel hatszoros teljes gyorsulást ért el a korábbi Higgs/MPS soros útvonalhoz
+képest.
 
 \* A Higgs licence hangoskönyveknél jól látható „Boson AI Higgs Audio” forrásmegjelölést kér, a hangklónozáshoz pedig a beszélő hozzájárulása szükséges. Részletek a [hivatalos modellkártyán](https://huggingface.co/bosonai/higgs-tts-3-4b).
 
 ## Hasznos beállítások (Settings)
 
 - `Audio format` → **MP3** (az exporthoz ffmpeg szükséges)
+- `Higgs backend` → **Auto** (Apple Siliconon MLX hybrid)
+- `MLX narration batch size` → **5**
+- `Hybrid question reference` → **bekapcsolva**
 - `tts_num_step` → 16 hallgatáshoz, 32 végleges exporthoz
 - `Merge short lines` (coalesce) → 720 ajánlott; a szegmenshatárokat az illesztett vágás tartja tisztán
 - `Split coalesced audio` → Aligned (ajánlott)

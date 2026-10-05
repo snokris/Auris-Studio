@@ -56,6 +56,24 @@ class SettingsTtsCacheInvalidationTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._segment_count(), 1)
 
+    def test_mlx_backend_settings_are_validated_and_clear_old_audio(self):
+        response = self.client.post('/api/settings', json={
+            'higgs_backend': 'mlx',
+            'higgs_mlx_model_source': 'local',
+            'higgs_mlx_model_path': '/models/higgs-mlx',
+            'higgs_mlx_batch_size': 99,
+            'higgs_mlx_hybrid_questions': False,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        saved = settings.load()
+        self.assertEqual(saved['higgs_backend'], 'mlx')
+        self.assertEqual(saved['higgs_mlx_model_source'], 'local')
+        self.assertEqual(saved['higgs_mlx_model_path'], '/models/higgs-mlx')
+        self.assertEqual(saved['higgs_mlx_batch_size'], 8)
+        self.assertFalse(saved['higgs_mlx_hybrid_questions'])
+        self.assertEqual(self._segment_count(), 0)
+
     def test_expression_policy_migration_marks_old_prompts_stale_once(self):
         settings.save({'tts_expression_policy_version': 1})
 

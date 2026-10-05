@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 import threading
 import time
 
@@ -16,14 +17,38 @@ def selected_engine_name() -> str:
     return value if value in {"omnivoice", "higgs"} else "omnivoice"
 
 
+def selected_engine_key() -> str:
+    name = selected_engine_name()
+    if name != "higgs":
+        return name
+    try:
+        from core.settings import get
+
+        backend = str(get("higgs_backend", "auto") or "auto").lower()
+    except Exception:
+        backend = "auto"
+    if backend == "auto":
+        backend = (
+            "mlx"
+            if platform.system() == "Darwin" and platform.machine() == "arm64"
+            else "transformers"
+        )
+    return "higgs-mlx" if backend == "mlx" else "higgs-transformers"
+
+
 class TTSEngineRouter:
     def __init__(self):
         self._lock = threading.RLock()
-        self._engine = self._create(selected_engine_name())
+        self._engine_key = selected_engine_key()
+        self._engine = self._create(self._engine_key)
 
     @staticmethod
     def _create(name: str):
-        if name == "higgs":
+        if name == "higgs-mlx":
+            from core.higgs_mlx_engine import HiggsMLXEngine
+
+            return HiggsMLXEngine()
+        if name in {"higgs", "higgs-transformers"}:
             from core.higgs_engine import HiggsTTSEngine
 
             return HiggsTTSEngine()
@@ -38,19 +63,21 @@ class TTSEngineRouter:
         return self._engine.engine_name
 
     def _select_if_needed(self) -> None:
-        wanted = selected_engine_name()
+        wanted = selected_engine_key()
         with self._lock:
-            if wanted == self.engine_name:
+            if wanted == self._engine_key:
                 return
             self._engine.unload()
             self._engine = self._create(wanted)
+            self._engine_key = wanted
 
     def reload(self) -> None:
-        wanted = selected_engine_name()
+        wanted = selected_engine_key()
         with self._lock:
-            if wanted != self.engine_name:
+            if wanted != self._engine_key:
                 self._engine.unload()
                 self._engine = self._create(wanted)
+                self._engine_key = wanted
                 self._engine.load_async()
             else:
                 self._engine.reload()

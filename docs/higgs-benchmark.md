@@ -21,11 +21,13 @@ reader/.venv/bin/python reader/scripts/benchmark_higgs.py --reference "/abszolut
 reader/.venv/bin/python reader/scripts/benchmark_higgs.py --reference "/abszolut/privat/referencia.wav" --reference-text "A referenciahang pontos átirata." --reference-cache on --output reader/audio_cache/benchmarks/higgs-on-01 --confirm-idle
 ```
 
-Meglévő könyvnél biztonságosabb a könyvazonosító: így a privát útvonal és átirat nem jelenik meg a parancssorban. Például a Siló jelenlegi azonosítója `1`:
+Meglévő könyvnél biztonságosabb a könyvazonosító: így a privát útvonal és
+átirat nem jelenik meg a parancssorban. A saját helyi azonosító a Library/API
+adataiból olvasható ki:
 
 ```bash
-reader/.venv/bin/python reader/scripts/benchmark_higgs.py --book-id 1 --reference-cache off --output reader/audio_cache/benchmarks/higgs-off-01 --confirm-idle
-reader/.venv/bin/python reader/scripts/benchmark_higgs.py --book-id 1 --reference-cache on --output reader/audio_cache/benchmarks/higgs-on-01 --confirm-idle
+reader/.venv/bin/python reader/scripts/benchmark_higgs.py --book-id 42 --reference-cache off --output reader/audio_cache/benchmarks/higgs-off-01 --confirm-idle
+reader/.venv/bin/python reader/scripts/benchmark_higgs.py --book-id 42 --reference-cache on --output reader/audio_cache/benchmarks/higgs-on-01 --confirm-idle
 ```
 
 Mindkét futás ugyanazt az öt saját magyar mondatot generálja kétszer, azonos 123-as maggal, magyar normalizálással, az aktuális Higgs-beállításokkal. A kész beszédhang cache-ét mindkét esetben megkerüli. Az `off` csak a referenciakód-cache-t kapcsolja ki; az előkészített referenciafájl újrahasznosítása mindkét futásban működik. A kapcsoló csak a mérőfolyamatra és gyermekére érvényes, a mentett appbeállításokat nem írja át.
@@ -39,16 +41,29 @@ Hallgatáskor figyeld: mondatkezdetek, hosszú magánhangzók, számok/dátumok,
 Ugyanez a corpus OmniVoice-szal is elkészíthető, ugyanabból a könyvhivatkozásból, a végső hangcache megkerülésével:
 
 ```bash
-reader/.venv/bin/python reader/scripts/benchmark_omnivoice.py --book-id 1 --output reader/audio_cache/benchmarks/omnivoice-01 --confirm-idle
+reader/.venv/bin/python reader/scripts/benchmark_omnivoice.py --book-id 42 --output reader/audio_cache/benchmarks/omnivoice-01 --confirm-idle
 ```
 
-2026-10-05-én a corpus v2 a Siló narrátorával OmniVoice-on is elkészült. A motor MPS/float32 módban futott, 16 lépéssel. Modellbetöltés: 8,49 s; az öt kérés átlaga 7,23 s, az első hangprofil-előkészítése utáni négy kérés átlaga 6,18 s. Ezek az adatok egyetlen futásból származnak, ezért nem tekintendők végleges teljesítményértékelésnek. A privát eredmény a Gitből kizárt `reader/audio_cache/benchmarks/omnivoice-20261005-02/` mappában található. A corpus v2 ötödik eleme már az önálló kérdés; az első négy szöveg változatlan a Higgs v1 méréshez képest.
+2026-10-05-én a corpus v2 a helyi privát narrátorhanggal OmniVoice-on is
+elkészült. A motor MPS/float32 módban futott, 16 lépéssel. Modellbetöltés:
+8,49 s; az öt kérés átlaga 7,23 s, az első hangprofil-előkészítése utáni négy
+kérés átlaga 6,18 s. Ezek az adatok egyetlen futásból származnak, ezért nem
+tekintendők végleges teljesítményértékelésnek. A privát eredmény a Gitből
+kizárt `reader/audio_cache/benchmarks/omnivoice-20261005-02/` mappában
+található. A corpus v2 ötödik eleme már az önálló kérdés; az első négy szöveg
+változatlan a Higgs v1 méréshez képest.
 
 ## Ellenőrzés
 
 ### Első M5 Pro mérés — 2026-10-05
 
-A Siló mentett narrátorhangjával, MPS/bfloat16 módban lefutott a cache ki/be próba és egy fordított sorrendű kontroll. Az első teljes körben a cache nélküli átlag 11,39 s (RTF 1,549), a cache-es 12,25 s (RTF 1,644) volt; ezt erősen torzította az eltérő betöltési/bemelegedési állapot. Az azonos ötmondatos első ismétlés 13,42 s, illetve 12,47 s átlagot adott. A fordított kontrollban a cache-es átlag 12,96 s (RTF 1,751), a cache nélküli 12,72 s (RTF 1,718) lett. Mind a 15 összehasonlítható WAV-pár bájtszinten azonos volt.
+A helyi privát narrátorhanggal, MPS/bfloat16 módban lefutott a cache ki/be
+próba és egy fordított sorrendű kontroll. Az első teljes körben a cache
+nélküli átlag 11,39 s (RTF 1,549), a cache-es 12,25 s (RTF 1,644) volt; ezt
+erősen torzította az eltérő betöltési/bemelegedési állapot. Az azonos
+ötmondatos első ismétlés 13,42 s, illetve 12,47 s átlagot adott. A fordított
+kontrollban a cache-es átlag 12,96 s (RTF 1,751), a cache nélküli 12,72 s
+(RTF 1,718) lett. Mind a 15 összehasonlítható WAV-pár bájtszinten azonos volt.
 
 A meghallgatás három problémát tárt fel. Az `1932.` normalizált bemenete helyes volt (`ezerkilencszázharminckettő`), de a Higgs hibásan artikulálta a hosszú összetett számnevet. A jelenlegi normalizáló a `Ft` rövidítést és a ponttal írt `7.30-kor` időpontot nem oldotta fel, így a worker `Ft`, illetve `hét.harminckor` szöveget kapott. Ezek a következő magyar normalizáló-port kötelező regressziós esetei. A corpus v1 kérdésmintája három mondatot küldött egy kérésben, miközben a valódi egynarrátoros szegmentáló a kérdést önállóan adja át; a corpus v2 ezért a kérdést a kérés végén tartja. A v1 kérdéshanglejtése nem használható az alkalmazás viselkedésének megítélésére.
 

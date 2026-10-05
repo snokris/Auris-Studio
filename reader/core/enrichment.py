@@ -10,6 +10,8 @@ full stop.
 import re
 import unicodedata
 
+from core.parser.hungarian_prosody import analyze_hungarian_prosody
+
 _DOT = "<prd>"
 _ELLIPSIS = "<ell>"
 _SPLIT = "<split>"
@@ -278,10 +280,15 @@ def _split_oversized_segment(
 def _scene_speed(text: str) -> float:
     action = len(_ACTION_WORDS.findall(text))
     slow = len(_SLOW_WORDS.findall(text))
-    if action >= 3:
-        return 1.15
-    if slow >= 2:
-        return 0.9
+    hungarian = analyze_hungarian_prosody(text)
+    if hungarian.slow and not hungarian.fast:
+        return 0.94
+    if hungarian.fast and not hungarian.slow:
+        return 1.06
+    if action >= 2 and not slow:
+        return 1.08
+    if slow >= 1 and not action:
+        return 0.94
     return 1.0
 
 
@@ -478,9 +485,26 @@ def _should_merge_sentences(buffer: str, sentence: str) -> bool:
         return True
     if _ATTRIBUTION_SENTENCE_RE.match(buffer) and _has_dialogue(sentence):
         return True
-    if _QUESTION_RE.search(buffer) or _SURPRISE_RE.search(buffer):
+    if (
+        _QUESTION_RE.search(buffer)
+        or _SURPRISE_RE.search(buffer)
+        or _QUESTION_RE.search(sentence)
+        or _SURPRISE_RE.search(sentence)
+    ):
         return False
     if _has_dialogue(buffer) != _has_dialogue(sentence):
+        return False
+    buffer_hu = analyze_hungarian_prosody(buffer)
+    sentence_hu = analyze_hungarian_prosody(sentence)
+    buffer_delivery = (
+        buffer_hu.whisper, buffer_hu.fast, buffer_hu.slow,
+        buffer_hu.laughter, buffer_hu.sigh, buffer_hu.dissatisfaction,
+    )
+    sentence_delivery = (
+        sentence_hu.whisper, sentence_hu.fast, sentence_hu.slow,
+        sentence_hu.laughter, sentence_hu.sigh, sentence_hu.dissatisfaction,
+    )
+    if buffer_delivery != sentence_delivery and (any(buffer_delivery) or any(sentence_delivery)):
         return False
     combined_words = len((buffer + " " + sentence).split())
     if combined_words > 30:
@@ -555,19 +579,29 @@ def _split_single_narrator_segments(
         buffer_kind: tuple[bool, bool] | None = None
 
         for segment in base_segments:
+            hungarian = analyze_hungarian_prosody(segment)
             kind = (
                 _has_dialogue(segment),
-                bool(_WHISPER_RE.search(segment)),
+                bool(_WHISPER_RE.search(segment)) or hungarian.whisper,
+                hungarian.fast,
+                hungarian.slow,
+                hungarian.laughter,
+                hungarian.sigh,
+                hungarian.dissatisfaction,
             )
             combined_words = len((buffer + " " + segment).split())
             closes_emphatically = bool(
                 buffer and (_QUESTION_RE.search(buffer) or _SURPRISE_RE.search(buffer))
+            )
+            opens_emphatically = bool(
+                _QUESTION_RE.search(segment) or _SURPRISE_RE.search(segment)
             )
             if (
                 buffer
                 and kind == buffer_kind
                 and combined_words <= max_words
                 and not closes_emphatically
+                and not opens_emphatically
             ):
                 buffer = f"{buffer} {segment}".strip()
             else:
@@ -664,12 +698,19 @@ def _should_allow_confirmation_tag(text: str, is_dialogue: bool) -> bool:
 
 def _select_expression_tag(sentence: str, context: str, is_dialogue: bool) -> str | None:
     tag_text = _explicit_tag_text(sentence)
+    hungarian = analyze_hungarian_prosody(tag_text)
 
     # OmniVoice question/surprise tags are literal non-verbal vocalizations
     # ("oh", "ah", and similar), not silent prosody controls.  Punctuation must
     # therefore never add them automatically.  Keep only sound tags supported
     # by explicit sentence-local wording, such as laughter or a sigh.
     if is_dialogue:
+        if hungarian.laughter:
+            return "[laughter]"
+        if hungarian.sigh:
+            return "[sigh]"
+        if hungarian.dissatisfaction:
+            return "[dissatisfaction-hnn]"
         for pattern, tag in _TAG_RULES:
             if not pattern.search(tag_text):
                 continue
@@ -713,6 +754,10 @@ def _segment_speed(sentence: str, is_dialogue: bool, scene_speed: float, tag: st
 
     if "..." in sentence or " -- " in sentence or ";" in sentence or ":" in sentence:
         speed = min(speed, 0.98)
+    if _QUESTION_RE.search(sentence):
+        speed = min(speed, 0.98)
+    elif _SURPRISE_RE.search(sentence):
+        speed = max(speed, 1.03)
 
     return round(speed, 2)
 
@@ -746,8 +791,6 @@ def enrich_chapter(
         )
     else:
         sentence_units = build_speaker_units(cleaned_text)
-    scene_speed = _scene_speed(cleaned_text)
-
     segments = []
     last_speaker = None
     for unit_index, unit in enumerate(sentence_units):
@@ -766,7 +809,8 @@ def enrich_chapter(
         if speaker:
             last_speaker = speaker
 
-        is_whisper = bool(_WHISPER_RE.search(sentence))
+        hungarian_prosody = analyze_hungarian_prosody(sentence)
+        is_whisper = bool(_WHISPER_RE.search(sentence)) or hungarian_prosody.whisper
         character_name = None if single_narrator_mode else speaker
         if single_narrator_mode:
             instruct = narrator_instruct
@@ -790,7 +834,9 @@ def enrich_chapter(
         # captured and the correct emotion tag is selected.
         context = sentence.strip()
         enriched, tag = _inject_tags(sentence, context, is_dialogue)
-        speed = _segment_speed(sentence, is_dialogue, scene_speed, tag, is_whisper)
+        speed = _segment_speed(
+            sentence, is_dialogue, _scene_speed(sentence), tag, is_whisper
+        )
         segments.append(
             {
                 "text": sentence,

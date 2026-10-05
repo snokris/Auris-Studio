@@ -200,6 +200,27 @@ class EverydayNumberTests(unittest.TestCase):
             normalize_hungarian('10:30-kor'), 'tíz óra harminc perckor'
         )
         self.assertEqual(normalize_hungarian('8:00-kor'), 'nyolc órakor')
+        self.assertEqual(
+            normalize_hungarian('7.30-kor'), 'hét óra harminc perckor'
+        )
+
+    def test_currency_abbreviations_are_spoken_as_forint(self):
+        self.assertEqual(
+            normalize_hungarian('A jegy 3500 Ft volt.'),
+            'A jegy háromezer-ötszáz forint volt.',
+        )
+        self.assertEqual(normalize_hungarian('2 HUF'), 'két forint')
+
+    def test_tts_friendly_mode_splits_long_number_compounds(self):
+        self.assertEqual(
+            normalize_hungarian(
+                '1932. március 5-én a 932. oldalon 3500 Ft volt.',
+                tts_friendly=True,
+            ),
+            'ezer kilencszáz harminckettő március ötödikén a '
+            'kilencszáz harminckettedik oldalon háromezer ötszáz '
+            'forint volt.',
+        )
 
 
 class RomanNumeralTests(unittest.TestCase):

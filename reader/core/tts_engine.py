@@ -545,7 +545,12 @@ def _wetext_normalize(text: str, language: str | None) -> str | None:
         return None
 
 
-def apply_text_normalization(text: str, language: str | None = None) -> str:
+def apply_text_normalization(
+    text: str,
+    language: str | None = None,
+    *,
+    tts_friendly: bool = False,
+) -> str:
     """Normalize numbers/dates for TTS.
 
     Order:
@@ -560,7 +565,12 @@ def apply_text_normalization(text: str, language: str | None = None) -> str:
     # English/Chinese/Japanese, and num2words' Hungarian tables get ordinals
     # wrong above a hundred, so Hungarian never reaches them.
     if looks_hungarian(language, text):
-        return _apply_with_bracket_protection(text, normalize_hungarian)
+        return _apply_with_bracket_protection(
+            text,
+            lambda part: normalize_hungarian(
+                part, tts_friendly=tts_friendly
+            ),
+        )
 
     # 1) Upstream OmniVoice TN (needs WeTextProcessing → pynini).
     try:
@@ -1088,6 +1098,7 @@ class TTSEngine:
         num_step: int,
         language: str | None,
         normalize_text: bool,
+        allow_clone_instruct: bool = False,
     ) -> dict:
         """Build OmniVoice.generate kwargs for one or many texts (same voice)."""
         synth_texts = [
@@ -1117,6 +1128,8 @@ class TTSEngine:
                 )
                 kwargs["ref_audio"] = ref_audio
                 kwargs["ref_text"] = ref_text
+            if instruct and allow_clone_instruct:
+                kwargs["instruct"] = instruct
         elif instruct:
             kwargs["instruct"] = instruct
         return kwargs
@@ -1131,6 +1144,7 @@ class TTSEngine:
         num_step: int = 32,
         language: str | None = None,
         normalize_text: bool = False,
+        allow_clone_instruct: bool = False,
     ) -> list[np.ndarray]:
         """Synthesize multiple texts that share the same voice conditioning."""
         if not texts:
@@ -1152,6 +1166,7 @@ class TTSEngine:
                 num_step=num_step,
                 language=language,
                 normalize_text=normalize_text,
+                allow_clone_instruct=allow_clone_instruct,
             )
             text_arg = kwargs.get("text")
             b_eff = len(text_arg) if isinstance(text_arg, list) else 1
@@ -1230,6 +1245,7 @@ class TTSEngine:
                         num_step=num_step,
                         language=language,
                         normalize_text=normalize_text,
+                        allow_clone_instruct=allow_clone_instruct,
                     )
                 )
             return out
@@ -1244,6 +1260,7 @@ class TTSEngine:
         num_step: int = 32,
         language: str | None = None,
         normalize_text: bool = False,
+        allow_clone_instruct: bool = False,
     ) -> np.ndarray:
         return self._synthesize_batch(
             texts=[text],
@@ -1254,6 +1271,7 @@ class TTSEngine:
             num_step=num_step,
             language=language,
             normalize_text=normalize_text,
+            allow_clone_instruct=allow_clone_instruct,
         )[0]
 
     def _ensure_voice_design_reference(self, instruct: str) -> tuple[str, str]:
