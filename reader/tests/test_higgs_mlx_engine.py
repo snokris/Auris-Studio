@@ -53,6 +53,57 @@ class HiggsMLXHelpersTests(unittest.TestCase):
 
 
 class HiggsMLXGenerationTests(unittest.TestCase):
+    def test_hungarian_question_voice_reference_is_generated_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source.wav'
+            sf.write(source, np.zeros(2400), 24_000)
+            commands = []
+            engine = HiggsMLXEngine()
+            engine._worker = object()
+
+            def rpc(payload):
+                commands.append(payload)
+                sf.write(payload['output_path'], np.zeros(3600), 24_000)
+                return {'ok': True, 'result': {}}
+
+            with (
+                patch('core.higgs_mlx_engine.AUDIO_CACHE_DIR', str(root / 'cache')),
+                patch(
+                    'core.higgs_mlx_engine._question_reference_path',
+                    return_value='tight.wav',
+                ),
+                patch.object(engine, '_source', return_value=('test/model', False)),
+                patch.object(engine, '_rpc_raw', side_effect=rpc),
+            ):
+                first = engine._question_voice_reference(
+                    str(source), 'Eredeti átirat.', 'hu'
+                )
+                second = engine._question_voice_reference(
+                    str(source), 'Eredeti átirat.', 'hu'
+                )
+
+            self.assertEqual(first, second)
+            self.assertTrue(Path(first[0]).is_file())
+            self.assertEqual(first[1], 'Vajon visszatér még?')
+            self.assertEqual(len(commands), 1)
+            self.assertEqual(commands[0]['reference_audio'], 'tight.wav')
+            self.assertEqual(commands[0]['reference_text'], 'Eredeti átirat.')
+            self.assertEqual(commands[0]['prompt'], 'Vajon visszatér még?')
+            self.assertEqual(commands[0]['generation']['seed'], 7)
+
+    def test_non_hungarian_question_keeps_original_reference_transcript(self):
+        engine = HiggsMLXEngine()
+        with patch(
+            'core.higgs_mlx_engine._question_reference_path',
+            return_value='tight.wav',
+        ):
+            result = engine._question_voice_reference(
+                'source.wav', 'Original transcript.', 'en'
+            )
+
+        self.assertEqual(result, ('tight.wav', 'Original transcript.'))
+
     def test_narration_is_batched_and_question_is_sequential(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -84,9 +135,10 @@ class HiggsMLXGenerationTests(unittest.TestCase):
             with (
                 patch.object(engine, 'cache_path', side_effect=cache_path),
                 patch.object(engine, '_rpc_raw', side_effect=rpc),
-                patch(
-                    'core.higgs_mlx_engine._question_reference_path',
-                    return_value='tight.wav',
+                patch.object(
+                    engine,
+                    '_question_voice_reference',
+                    return_value=('question.wav', 'Vajon visszatér még?'),
                 ),
                 patch(
                     'core.higgs_mlx_engine._setting',
@@ -104,7 +156,8 @@ class HiggsMLXGenerationTests(unittest.TestCase):
 
             self.assertEqual([command['command'] for command in commands], ['batch', 'generate'])
             self.assertEqual(len(commands[0]['items']), 2)
-            self.assertEqual(commands[1]['reference_audio'], 'tight.wav')
+            self.assertEqual(commands[1]['reference_audio'], 'question.wav')
+            self.assertEqual(commands[1]['reference_text'], 'Vajon visszatér még?')
             self.assertEqual(callbacks, [0, 1, 2])
             self.assertEqual(len(results), 3)
 

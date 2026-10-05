@@ -9,6 +9,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
+QUESTION_REFERENCE_TEXT = "Vajon visszatér még?"
+
+
+def is_hungarian_language(language: str | None) -> bool:
+    return str(language or "").strip().lower() in {
+        "hu", "hun", "hungarian", "magyar"
+    }
+
 
 def _forms(*patterns: str) -> re.Pattern:
     return re.compile(r"\b(?:" + "|".join(patterns) + r")\b", re.IGNORECASE)
