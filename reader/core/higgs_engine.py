@@ -20,6 +20,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,7 @@ import numpy as np
 import soundfile as sf
 
 from core.tts_engine import AUDIO_CACHE_DIR, SAMPLE_RATE, _write_audio_atomic, apply_text_normalization
+from core.cache_identity import NORMALIZATION_VERSION, reference_identity, render_identity
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ OFFICIAL_MODEL_REPO = "bosonai/higgs-tts-3-4b"
 DEFAULT_TRANSFORMERS_REPO = "multimodalart/higgs-audio-v3-tts-4b-transformers"
 REFERENCE_EXPAND_IF_SHORTER_SECONDS = 2.0
 REFERENCE_EXPAND_TARGET_SECONDS = 4.0
-HIGGS_CACHE_VERSION = 7  # v7: raw-mode number/date normalization (Hungarian digits)
+HIGGS_CACHE_VERSION = 8  # v8: reference, renderer and normalization identity
 HIGGS_MODEL_INIT_SEED = 123
 
 _OMNIVOICE_TAGS = {
@@ -155,6 +157,8 @@ class HiggsTTSEngine:
         self._worker: subprocess.Popen | None = None
         self._sample_rate = SAMPLE_RATE
         self._load_metadata: dict = {}
+        self._reference_files = OrderedDict()
+        self._reference_lock = threading.Lock()
         os.makedirs(AUDIO_CACHE_DIR, exist_ok=True)
 
     def _source(self) -> tuple[str, bool]:
@@ -345,8 +349,30 @@ class HiggsTTSEngine:
             return False
 
     def invalidate_voice_prompt(self, ref_audio=None, ref_text=None) -> None:
-        # Higgs conditions directly on the reference waveform for each call.
+        # File edits change cache identity; transcript is passed on every call.
         return
+
+    def _prepared_reference(self, path: str) -> str:
+        identity = reference_identity(path)
+        with self._reference_lock:
+            cached = self._reference_files.get(identity)
+            if cached and os.path.isfile(cached):
+                self._reference_files.move_to_end(identity)
+                return cached
+            audio, sr = sf.read(path, always_2d=False)
+            processed = _prepare_reference(audio, int(sr))
+            prepared = path
+            if len(processed) != len(np.asarray(audio).squeeze()):
+                key = hashlib.sha256(repr(identity).encode()).hexdigest()
+                directory = os.path.join(AUDIO_CACHE_DIR, "higgs_refs")
+                os.makedirs(directory, exist_ok=True)
+                prepared = os.path.join(directory, key + ".wav")
+                if not os.path.isfile(prepared):
+                    _write_audio_atomic(prepared, processed, int(sr))
+            self._reference_files[identity] = prepared
+            while len(self._reference_files) > 16:
+                self._reference_files.popitem(last=False)
+            return prepared
 
     def _get_voice_clone_prompt(self, ref_audio, ref_text):
         return None
@@ -374,6 +400,7 @@ class HiggsTTSEngine:
         language: str | None = None,
         normalize_text: bool = False,
         num_step: int = 0,
+        render_variant: str | None = None,
     ) -> str:
         controls = (
             _setting("higgs_prompt_mode", "raw"),
@@ -384,7 +411,11 @@ class HiggsTTSEngine:
         generation = cls._generation_settings()
         payload = (
             f"higgs-v{HIGGS_CACHE_VERSION}|{text}|{instruct}|{ref_audio}|{ref_text}|{speed:.3f}|"
-            f"{language or ''}|nt={int(bool(normalize_text))}|{controls}|{generation}"
+            f"{language or ''}|nt={int(bool(normalize_text))}|{controls}|{generation}|"
+            f"norm={NORMALIZATION_VERSION}|ref={reference_identity(ref_audio)!r}|"
+            f"render={render_variant or render_identity('higgs')}|"
+            f"model={_setting('higgs_model_repo', DEFAULT_TRANSFORMERS_REPO)}|"
+            f"source={_setting('higgs_model_source', 'download')}|path={_setting('higgs_model_path', '')}"
         )
         return hashlib.md5(payload.encode("utf-8")).hexdigest()
 
@@ -489,16 +520,7 @@ class HiggsTTSEngine:
             raise RuntimeError("Higgs TTS is not loaded. " + (self._error or "Load it first."))
         settings = self._generation_settings()
         seed = settings.pop("seed")
-        reference_path = ref_audio
-        if ref_audio:
-            if not os.path.exists(ref_audio):
-                raise FileNotFoundError(f"Reference audio not found: {ref_audio}")
-            audio, sr = sf.read(ref_audio, always_2d=False)
-            processed = _prepare_reference(audio, int(sr))
-            if len(processed) != len(np.asarray(audio).squeeze()):
-                handle, reference_path = tempfile.mkstemp(suffix=".wav", prefix="auris-studio-higgs-ref-")
-                os.close(handle)
-                sf.write(reference_path, processed, int(sr))
+        reference_path = self._prepared_reference(ref_audio) if ref_audio else None
         prompt = self._prompt(text, instruct, speed, language, normalize_text)
         handle, output_path = tempfile.mkstemp(suffix=".wav", prefix="auris-studio-higgs-out-")
         os.close(handle)
@@ -524,7 +546,7 @@ class HiggsTTSEngine:
             audio, _ = sf.read(output_path, dtype="float32")
             return np.asarray(audio, dtype=np.float32)
         finally:
-            for path in (output_path, reference_path if reference_path != ref_audio else None):
+            for path in (output_path,):
                 if path:
                     try:
                         os.remove(path)
@@ -552,6 +574,10 @@ class HiggsTTSEngine:
             ref_text=ref_text,
             language=language,
             normalize_text=bool(normalize_text),
+            render_variant=(
+                f"{self._load_metadata['device']}/{self._load_metadata['dtype'].removeprefix('torch.')}"
+                if self._load_metadata.get("device") and self._load_metadata.get("dtype") else None
+            ),
         )
         path = self.cache_path(key)
         if os.path.exists(path):

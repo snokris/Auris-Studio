@@ -6,6 +6,8 @@ Ez a repó a [mp3pintyo/Auris](https://github.com/mp3pintyo/Auris) forkja, amely
 
 ## Képernyőképek
 
+Fejlesztői mérés: [Magyar Higgs A/B próba és referencia-cache](docs/higgs-benchmark.md).
+
 ### Library
 ![Library](assets/library.png)
 

@@ -83,7 +83,9 @@ class SingleVoiceOnlyTest(unittest.TestCase):
                 "INSERT INTO books (id, title, author, file_path, file_type, "
                 "single_narrator_mode) VALUES (1, 'T', 'A', 't.txt', 'txt', 0)"
             )
-        page = self.client.get('/voice-studio/1').data
+        # UI tests must not start a real model worker in the background.
+        with patch.object(app_module.tts, 'load_async'):
+            page = self.client.get('/voice-studio/1').data
         self.assertNotIn(b'Characters', page)
         self.assertNotIn(b'single-narrator-mode', page)
         self.assertNotIn(b'Narration mode', page)
