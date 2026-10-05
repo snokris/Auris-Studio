@@ -1,8 +1,8 @@
 """
-Auris Studio / OmniReader installer.
+Auris Studio installer.
 
 Detects hardware, installs the appropriate PyTorch build, then installs
-OmniVoice and the reader dependencies.
+the Higgs runtimes and reader dependencies.
 
 Usage:
     python setup.py
@@ -24,12 +24,6 @@ from pathlib import Path
 APP_DIR = Path(__file__).resolve().parent
 REPO_DIR = APP_DIR.parent
 
-# Prefer vendored source under source/omnivoice_repo; fall back to legacy ./OmniVoice.
-_OMNIVOICE_CANDIDATES = (
-    REPO_DIR / "source" / "omnivoice_repo",
-    REPO_DIR / "OmniVoice",
-)
-OMNIVOICE_SRC = next((p for p in _OMNIVOICE_CANDIDATES if p.exists()), _OMNIVOICE_CANDIDATES[0])
 _WHEELS_OVERRIDE = os.environ.get("AURIS_STUDIO_WHEELS_DIR", "").strip()
 WHEELS_DIR = Path(_WHEELS_OVERRIDE) if _WHEELS_OVERRIDE else (REPO_DIR / "wheels")
 STRICT_OFFLINE = os.environ.get("AURIS_STUDIO_OFFLINE", "").strip().lower() in {
@@ -58,7 +52,7 @@ def banner():
         f"""
 {BD}+------------------------------------------+{W}
 {BD}|      Auris Studio Setup Installer        |{W}
-{BD}|   Audiobook Reader + OmniVoice stack    |{W}
+{BD}|     Higgs audiobook reader stack        |{W}
 {BD}+------------------------------------------+{W}
 """
     )
@@ -271,53 +265,26 @@ def install_torch(hw_tag):
     ok("PyTorch installed")
 
 
-def install_omnivoice_deps():
-    step("Installing OmniVoice runtime dependencies")
+def install_runtime_deps():
+    step("Installing shared runtime dependencies")
     deps = [
-        # OmniVoice currently loads correctly with 5.3.0; newer 5.x builds can
-        # miss or reshuffle Higgs Audio classes and break model startup.
-        "transformers==5.3.0",
         "accelerate",
+        "tokenizers>=0.22.0",
         "pydub",
-        "tensorboardX",
-        "webdataset",
         "numpy",
         "soundfile",
         "librosa",
         "num2words",  # number → words fallback for text normalization
     ]
     pip_install(*deps)
-    ok("OmniVoice dependencies installed")
-
-
-def install_omnivoice():
-    step("Installing OmniVoice")
-
-    if offline_wheels_available():
-        cached_wheels = list(WHEELS_DIR.glob("omnivoice-*.whl"))
-        if cached_wheels:
-            info(f"Using cached wheel: {cached_wheels[0].name}")
-            pip_install(str(cached_wheels[0]), no_index=True)
-            ok("OmniVoice installed from offline wheel")
-            return
-
-    if OMNIVOICE_SRC.exists():
-        info(f"Installing from local source: {OMNIVOICE_SRC}")
-        run([*PIP, "--no-deps", str(OMNIVOICE_SRC)])
-        ok("OmniVoice installed from source")
-        return
-
-    warn("No local source or wheel found. Installing OmniVoice from PyPI.")
-    pip_install("omnivoice")
-    ok("OmniVoice installed from PyPI")
+    ok("Shared runtime dependencies installed")
 
 
 def install_higgs_transformers_runtime():
     """Install Higgs' newer Transformers in an isolated subprocess path.
 
-    OmniVoice remains pinned to 5.3.0 in the main venv. Higgs' community
-    adapter requires >=5.5, so importing both versions in one interpreter is
-    deliberately avoided.
+    Higgs' community adapter uses an isolated Transformers runtime so upgrades
+    cannot destabilize the Flask application environment.
     """
     step("Installing isolated Higgs Transformers runtime")
     target = APP_DIR / ".higgs_runtime"
@@ -327,14 +294,14 @@ def install_higgs_transformers_runtime():
         "--no-deps",
         "transformers==5.13.0",
     )
-    ok("Higgs Transformers runtime installed (isolated from OmniVoice)")
+    ok("Higgs Transformers runtime installed")
 
 
 def install_higgs_mlx_runtime(hw_tag):
     """Install MLX-Audio in its own venv on Apple Silicon.
 
-    Keeping it isolated prevents its newer Transformers dependency from
-    replacing OmniVoice's pinned version in the main application venv.
+    Keeping it isolated prevents MLX-Audio dependency upgrades from changing
+    the main application environment.
     """
     if hw_tag != "mps":
         info("Skipping MLX-Audio runtime (Apple Silicon only)")
@@ -459,8 +426,7 @@ def main():
 
     hw_tag = detect_hardware()
     install_torch(hw_tag)
-    install_omnivoice_deps()
-    install_omnivoice()
+    install_runtime_deps()
     install_higgs_transformers_runtime()
     install_higgs_mlx_runtime(hw_tag)
     install_reader_deps()

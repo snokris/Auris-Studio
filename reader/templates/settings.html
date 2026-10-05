@@ -4,81 +4,18 @@
 <div class="settings-page">
   <h1 class="settings-page-title">Settings</h1>
 
-  <!-- Active engine -->
-  <section class="settings-section">
-    <div class="settings-section-title">Text-to-Speech Engine</div>
-    <div class="setting-row">
-      <label>Active engine</label>
-      <select id="tts-engine" class="select-input" onchange="toggleEngineSettings(this.value)">
-        <option value="omnivoice">OmniVoice</option>
-        <option value="higgs">Higgs TTS 3 — 4B</option>
-      </select>
-      <span class="muted" style="font-size:.78rem">
-        Save, then use <strong>Reload TTS engine</strong>. Switching unloads the
-        previous model before loading the selected engine.
-      </span>
-    </div>
-    <div class="setting-row" style="margin-top:12px">
-      <button class="btn btn-ghost btn-sm" onclick="reloadTTS()">Reload TTS engine</button>
-      <span id="tts-reload-hint" class="status-hint"></span>
-    </div>
-  </section>
-
-  <!-- OmniVoice Model -->
-  <section class="settings-section engine-settings omnivoice-settings">
-    <div class="settings-section-title">OmniVoice Model</div>
-
-    <div class="setting-row">
-      <label>Model Source</label>
-      <div class="radio-group">
-        <label><input type="radio" name="model_source" value="local" id="src-local"> Local path</label>
-        <label><input type="radio" name="model_source" value="download" id="src-download"> Download from HuggingFace</label>
-      </div>
-    </div>
-
-    <div id="panel-local" class="sub-panel">
-      <div class="setting-row">
-        <label>Model directory path</label>
-        <div class="input-group">
-          <input type="text" id="model-path" class="text-input" placeholder="/path/to/OmniVoice">
-          <button class="btn btn-ghost btn-sm" onclick="checkPath()">Check</button>
-        </div>
-        <span id="path-status" class="status-hint"></span>
-      </div>
-    </div>
-
-    <div id="panel-download" class="sub-panel hidden">
-      <div class="setting-row">
-        <label>HuggingFace repository</label>
-        <input type="text" id="model-repo" class="text-input" value="k2-fsa/OmniVoice">
-      </div>
-      <div class="setting-row">
-        <label>Download destination</label>
-        <input type="text" id="dl-dest" class="text-input" placeholder="Absolute path to save model files">
-      </div>
-      <div class="setting-row">
-        <label>HF mirror endpoint <span class="muted">(optional)</span></label>
-        <input type="text" id="hf-endpoint" class="text-input" placeholder="e.g. https://hf-mirror.com">
-      </div>
-      <div class="setting-row">
-        <button class="btn btn-primary" id="dl-btn" onclick="startDownload()">Start Download</button>
-      </div>
-      <div id="dl-progress-wrap" class="progress-wrap hidden">
-        <div class="progress-bar-outer"><div class="progress-bar-inner" id="dl-bar"></div></div>
-        <div id="dl-msg" class="progress-msg"></div>
-      </div>
-    </div>
-
-  </section>
-
   <!-- Higgs TTS -->
-  <section class="settings-section engine-settings higgs-settings hidden">
+  <section class="settings-section">
     <div class="settings-section-title">Higgs TTS 3 — 4B</div>
     <p class="section-desc">
       Apple Siliconon a natív MLX hibrid backend az ajánlott: a kijelentéseket
       batchben, a kérdéseket külön, természetesebb kérdő hanglejtéssel készíti.
       Más platformokon az Auto beállítás a Transformers backendre vált.
     </p>
+    <div class="setting-row" style="margin-bottom:12px">
+      <button class="btn btn-ghost btn-sm" onclick="reloadTTS()">Reload TTS engine</button>
+      <span id="tts-reload-hint" class="status-hint"></span>
+    </div>
     <div class="setting-row">
       <label>Backend</label>
       <select id="higgs-backend" class="select-input" onchange="toggleHiggsBackend(this.value)">
@@ -310,8 +247,8 @@
       <input type="text" id="narrator-instruct" class="text-input"
              placeholder="female, middle-aged, moderate pitch, american accent">
       <span class="muted" style="font-size:.78rem">
-        OmniVoice uses all voice-design attributes. Higgs uses reference audio for
-        speaker identity and maps whisper / pitch attributes to control tokens.
+        Higgs uses reference audio for speaker identity and maps whisper / pitch
+        attributes to control tokens.
       </span>
     </div>
     {# MULTI_VOICE: minden könyv egynarrátoros, a kapcsolónak nincs szerepe.
@@ -338,117 +275,6 @@
         English/Chinese/Japanese: install <code>wetext</code> on Windows (or WeTextProcessing on Linux/macOS).
         Other languages (including Hungarian) use num2words for integers.
         Changing this creates new audio cache entries for affected segments.
-      </span>
-    </div>
-  </section>
-
-  <!-- Export Defaults -->
-  <section class="settings-section engine-settings omnivoice-settings">
-    <div class="settings-section-title">OmniVoice Generation &amp; Export</div>
-    <div class="setting-row">
-      <label>Speech quality (diffusion steps)</label>
-      <select id="tts-num-step" class="select-input">
-        <option value="12">12 — fastest, lower quality</option>
-        <option value="16">16 — recommended (good quality)</option>
-        <option value="24">24 — higher quality</option>
-        <option value="32">32 — max quality, slowest</option>
-      </select>
-      <span class="muted" style="font-size:.78rem">
-        Used for playback and export. Lower steps are much faster; 16 is usually enough.
-        Changing this creates new audio cache entries (existing files are kept).
-      </span>
-    </div>
-    <div class="setting-row">
-      <label>GPU batch size</label>
-      <select id="tts-batch-size" class="select-input">
-        <option value="0">Auto — by GPU class (recommended)</option>
-        <option value="8">8 — low VRAM</option>
-        <option value="12">12</option>
-        <option value="16">16 — 12 GB class</option>
-        <option value="24">24 — 24 GB + voice clone</option>
-        <option value="32">32 — max throughput</option>
-        <option value="40">40 — very high VRAM</option>
-      </select>
-      <span class="muted" style="font-size:.78rem">
-        How many <em>coalesced utterances</em> go into one OmniVoice.generate() call.
-        OmniVoice is only ~0.6B params — even batch 24 often uses just a few GB and
-        Task Manager “3D” load stays low. Check the terminal for
-        <code>GPU generate done: batch=… peak_alloc=…</code> (that is the truth).
-        Prefer nvidia-smi / Task Manager “CUDA” engine, not “3D”.
-      </span>
-    </div>
-    <div class="setting-row">
-      <label>Merge short lines (chars)</label>
-      <select id="tts-coalesce-chars" class="select-input">
-        <option value="0">0 — off (one GPU call per sentence)</option>
-        <option value="400">400 — light merge</option>
-        <option value="720">720 — recommended</option>
-        <option value="1000">1000 — aggressive (faster export)</option>
-      </select>
-      <span class="muted" style="font-size:.78rem">
-        Joins consecutive same-voice sentences into one longer synth, then splits the
-        audio back for subtitles/timeline. This usually speeds full-book export more
-        than raising batch size alone (paper: batch 1→8 only ~30% faster).
-      </span>
-    </div>
-    <div class="setting-row">
-      <label>Split coalesced audio</label>
-      <select id="tts-split-mode" class="select-input">
-        <option value="align">Aligned — Whisper word timestamps (recommended)</option>
-        <option value="chars">Chars — proportional split (legacy)</option>
-      </select>
-      <span class="muted" style="font-size:.78rem">
-        How merged same-voice audio is cut back into per-sentence clips.
-        <strong>Aligned</strong> places every cut in the pause between words, which
-        removes clipped sentence endings and cross-boundary word fragments.
-      </span>
-    </div>
-    <div class="setting-row">
-      <label>Alignment ASR model</label>
-      <select id="tts-align-asr-model" class="select-input">
-        <option value="openai/whisper-tiny">whisper-tiny — fastest</option>
-        <option value="openai/whisper-base">whisper-base</option>
-        <option value="openai/whisper-small">whisper-small — recommended</option>
-        <option value="openai/whisper-medium">whisper-medium</option>
-        <option value="openai/whisper-large-v3-turbo">whisper-large-v3-turbo — most accurate, slowest</option>
-      </select>
-      <span class="muted" style="font-size:.78rem">
-        Whisper model used only to time the words for aligned splitting — the text
-        itself is already known, so a small model is normally enough. The selected
-        model downloads on first use and reloads without restarting the app.
-      </span>
-    </div>
-    <div class="setting-row">
-      <label>GPU acceleration</label>
-      <select id="tts-accel" class="select-input">
-        <option value="auto">Auto — best available</option>
-        <option value="cuda_graph">CUDA Graph — experimental on Windows</option>
-        <option value="hybrid">Hybrid — Triton + CUDA Graph (WSL/Linux best)</option>
-        <option value="triton">Triton kernels only</option>
-        <option value="off">Off — plain PyTorch</option>
-      </select>
-      <span class="muted" style="font-size:.78rem" id="tts-accel-hint">
-        On the tested RTX 3090 + Windows 11 setup, plain PyTorch was slightly
-        faster, so use <strong>Off</strong> unless your own benchmark proves otherwise.
-        Full Triton/hybrid needs <code>omnivoice-triton</code> (officially WSL2/Linux;
-        on native Windows try <code>pip install triton-windows</code> then
-        <code>pip install omnivoice-triton</code>). After changing this, click
-        <strong>Reload TTS model</strong> below.
-      </span>
-      <div id="tts-accel-status" class="muted" style="font-size:.78rem;margin-top:.35rem"></div>
-    </div>
-    <div class="setting-row">
-      <label>Parallel export workers</label>
-      <select id="tts-export-workers" class="select-input">
-        <option value="0">Auto — 2 workers on 20 GB+ GPU</option>
-        <option value="1">1 — single model</option>
-        <option value="2">2 — dual model / dual CUDA stream</option>
-      </select>
-      <span class="muted" style="font-size:.78rem">
-        Loads a second OmniVoice model only while exporting. On an RTX 3090,
-        two workers can overlap GPU-heavy generation with lower-load decoding.
-        Automatically falls back to one worker when VRAM is insufficient or a
-        worker fails.
       </span>
     </div>
   </section>

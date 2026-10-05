@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -44,14 +45,14 @@ class SettingsTtsCacheInvalidationTest(unittest.TestCase):
         with database.get_conn() as conn:
             return conn.execute('SELECT COUNT(*) FROM tts_segments').fetchone()[0]
 
-    def test_quality_change_clears_persisted_playback_segments(self):
-        response = self.client.post('/api/settings', json={'tts_num_step': 32})
+    def test_normalization_change_clears_persisted_playback_segments(self):
+        response = self.client.post('/api/settings', json={'normalize_text': False})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._segment_count(), 0)
 
-    def test_unchanged_quality_keeps_persisted_playback_segments(self):
-        response = self.client.post('/api/settings', json={'tts_num_step': 16})
+    def test_unchanged_normalization_keeps_persisted_playback_segments(self):
+        response = self.client.post('/api/settings', json={'normalize_text': True})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._segment_count(), 1)
@@ -83,6 +84,23 @@ class SettingsTtsCacheInvalidationTest(unittest.TestCase):
             settings.TTS_EXPRESSION_POLICY_VERSION,
         )
         self.assertFalse(settings.migrate_tts_expression_policy_version())
+
+    def test_legacy_omnivoice_settings_are_dropped(self):
+        settings.SETTINGS_FILE.write_text(json.dumps({
+            'tts_engine': 'omnivoice',
+            'model_repo': 'some/legacy-model',
+            'tts_num_step': 15,
+            'theme': 'dark',
+        }), encoding='utf-8')
+
+        loaded = settings.load()
+        saved = settings.save({'tts_engine': 'omnivoice'})
+
+        self.assertNotIn('tts_engine', loaded)
+        self.assertNotIn('model_repo', loaded)
+        self.assertNotIn('tts_num_step', loaded)
+        self.assertNotIn('tts_engine', saved)
+        self.assertEqual(saved['theme'], 'dark')
 
 
 if __name__ == '__main__':

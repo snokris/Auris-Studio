@@ -1,4 +1,4 @@
-"""Runtime selector that keeps OmniVoice and Higgs model lifecycles separate."""
+"""Runtime selector for the Higgs Transformers and Apple Silicon MLX backends."""
 
 from __future__ import annotations
 
@@ -8,19 +8,10 @@ import time
 
 
 def selected_engine_name() -> str:
-    try:
-        from core.settings import get
-
-        value = str(get("tts_engine", "omnivoice") or "omnivoice").lower()
-    except Exception:
-        value = "omnivoice"
-    return value if value in {"omnivoice", "higgs"} else "omnivoice"
+    return "higgs"
 
 
 def selected_engine_key() -> str:
-    name = selected_engine_name()
-    if name != "higgs":
-        return name
     try:
         from core.settings import get
 
@@ -52,11 +43,7 @@ class TTSEngineRouter:
             from core.higgs_engine import HiggsTTSEngine
 
             return HiggsTTSEngine()
-        from core.tts_engine import TTSEngine
-
-        engine = TTSEngine()
-        engine.engine_name = "omnivoice"
-        return engine
+        raise ValueError(f"Unsupported TTS backend: {name}")
 
     @property
     def engine_name(self) -> str:

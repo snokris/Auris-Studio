@@ -25,7 +25,7 @@ class HiggsPromptTests(unittest.TestCase):
             {"ok": True, "event": "ready"},
         )
 
-    def test_existing_omnivoice_nonverbal_tags_are_translated(self):
+    def test_existing_nonverbal_tags_are_translated(self):
         text = _translate_inline_tags("Wait. [laughter] Really? [question-oh]")
         self.assertIn("<|sfx:laughter|>Haha", text)
         self.assertIn("<|emotion:surprise|>", text)
@@ -157,7 +157,7 @@ class RouterTests(unittest.TestCase):
         ):
             self.assertEqual(selected_engine_key(), "higgs-mlx")
 
-    def test_router_selects_higgs_without_importing_it_into_omnivoice_engine(self):
+    def test_router_selects_transformers_higgs(self):
         with patch(
             "core.tts_router.selected_engine_key",
             return_value="higgs-transformers",

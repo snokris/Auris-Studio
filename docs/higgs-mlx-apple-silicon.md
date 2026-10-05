@@ -1,36 +1,17 @@
 # Higgs TTS 3 + MLX — Apple Silicon hibrid integráció
 
-Dátum: 2026-10-05. Ág: `feature/omnivoice-hungarian-prosody`.
+Dátum: 2026-10-05.
 
 ## Döntés röviden
 
-Az OmniVoice maradhat gyors vázlatmotor, de a természetes magyar egynarrátoros
-felolvasás elsődleges motorja a Higgs TTS 3 natív MLX futtatással. Ez ugyanazt
-a Higgs-modellcsaládot használja, amely hallásra eddig jobb volt, miközben az
-Apple Silicon GPU-t közvetlenül használja.
+A természetes magyar egynarrátoros felolvasás motorja a Higgs TTS 3 natív MLX
+futtatással. Ez közvetlenül használja az Apple Silicon GPU-t.
 
 Az elfogadott hibrid változat az alkalmazás normál lejátszási, előnézeti,
 fejezetgenerálási és exportútvonalán is működik. Az Auto backend Apple
 Siliconon MLX-et, más platformon Transformerst választ.
 
-## Miért nem további OmniVoice-hangolás?
-
-- Az OmniVoice klónozási utasításai a hivatalos felületen életkorra, nemre,
-  hangmagasságra, suttogásra, valamint angol/kínai akcentusokra korlátozódnak.
-  Nincs általános magyar fonéma- vagy mondathanglejtés-vezérlés.
-- A hivatalos útmutató 3–10 másodperces, azonos nyelvű, pontosan átírt
-  referenciahangot ajánl; a hosszabb minta ronthatja a klónozást.
-- A mondatonkénti, kontextus nélküli generálás ismert prozódiai korlát. A
-  korábbi 16/24/32 lépéses próbák sebességet változtattak, de a hallható
-  magyar hangsúlyozási problémát nem oldották meg.
-- A Higgs hivatalos modellkártyája a magyart a 85 kiemelten ellenőrzött nyelv
-  között sorolja fel. A modell saját összehasonlításában kérdéseknél és
-  összetett mondatoknál is megelőzi az OmniVoice-ot.
-
-Források: [OmniVoice](https://github.com/k2-fsa/OmniVoice),
-[OmniVoice tippek](https://github.com/k2-fsa/OmniVoice/blob/master/docs/tips.md),
-[mondatkontextus-probléma](https://github.com/k2-fsa/OmniVoice/issues/241),
-[Higgs TTS 3 modellkártya](https://huggingface.co/bosonai/higgs-tts-3-4b),
+Források: [Higgs TTS 3 modellkártya](https://huggingface.co/bosonai/higgs-tts-3-4b),
 [MLX-Audio Higgs dokumentáció](https://github.com/Blaizzy/mlx-audio/blob/main/docs/models/tts/higgs_audio_v3.md).
 
 ## Helyi M5 Pro mérés
@@ -115,7 +96,7 @@ tagolás csak a Higgs akusztikai promptjában él.
 - A `core/higgs_mlx_engine.py` tartja a cache-t, az ötös narration batch-eket,
   a kérdésfelismerést és a referencia biztonságos, származtatott változatát.
 - A `core/higgs_mlx_worker.py` külön `.mlx_runtime` Python-folyamatban fut,
-  ezért az MLX újabb függőségei nem ütköznek az OmniVoice környezetével.
+  ezért az MLX újabb függőségei nem változtatják meg az alkalmazás környezetét.
 - A referencia eredeti fájlja soha nem módosul. A származtatott 24 kHz-es mono
   WAV az `audio_cache/higgs_mlx_refs/` könyvtárban, tartalomazonosító alatt él.
 - A narration batch mérete 1–8 között állítható; a bevizsgált alapérték 5.

@@ -1,7 +1,7 @@
 @echo off
 :: Auris Studio - Windows launcher
 :: The TTS model loads in the background; the app opens immediately.
-:: Model must be present at: ..\model_backup\OmniVoice\
+:: Configure the Higgs model in Settings before first use.
 
 cd /d "%~dp0"
 

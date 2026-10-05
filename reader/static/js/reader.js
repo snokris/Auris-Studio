@@ -665,7 +665,7 @@ document.getElementById('chapter-generate-btn').onclick = async () => {
 };
 
 // Keep a chunk of concurrent HTTP requests ahead of playback.  The server
-// coalesces requests arriving together into one OmniVoice generate_many()
+// coalesces requests arriving together into one generate_many() call
 // call, so the configured GPU batch size is also used during reading.
 function _extendPrewarm(fromIdx) {
   if (!segments.length) return;

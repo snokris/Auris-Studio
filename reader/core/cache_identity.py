@@ -21,12 +21,9 @@ def render_identity(engine):
     import torch
 
     if torch.cuda.is_available():
-        dtype = "bfloat16" if engine == "higgs" or torch.cuda.is_bf16_supported() else "float16"
+        dtype = "bfloat16"
         return f"cuda/{dtype}"
     if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-        if engine == "higgs":
-            fp32 = os.environ.get("AURIS_STUDIO_HIGGS_MPS_DTYPE", "").lower() in {"fp32", "float32"}
-        else:
-            fp32 = os.environ.get("AURIS_STUDIO_MPS_DTYPE", "").lower() not in {"bf16", "bfloat16"}
+        fp32 = os.environ.get("AURIS_STUDIO_HIGGS_MPS_DTYPE", "").lower() in {"fp32", "float32"}
         return "mps/float32" if fp32 else "mps/bfloat16"
     return "cpu/float32"

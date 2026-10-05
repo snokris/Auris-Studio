@@ -23,7 +23,7 @@ import soundfile as sf
 
 from core.cache_identity import reference_identity
 from core.higgs_engine import HiggsTTSEngine, _setting
-from core.tts_engine import AUDIO_CACHE_DIR, SAMPLE_RATE, _write_audio_atomic
+from core.tts_common import AUDIO_CACHE_DIR, SAMPLE_RATE, _write_audio_atomic
 
 
 log = logging.getLogger(__name__)
