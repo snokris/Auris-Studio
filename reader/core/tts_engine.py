@@ -22,6 +22,7 @@ import numpy as np
 import soundfile as sf
 
 from core.hungarian_numbers import looks_hungarian, normalize_hungarian
+from core.cache_identity import NORMALIZATION_VERSION, reference_identity, render_identity
 
 log = logging.getLogger(__name__)
 
@@ -771,6 +772,7 @@ class TTSEngine:
                 device,
                 dtype,
             )
+            self._render_variant = f"{device}/{str(dtype).removeprefix('torch.')}"
             load_kwargs = {
                 "device_map": device,
                 "dtype": dtype,
@@ -944,10 +946,13 @@ class TTSEngine:
         language: str | None = None,
         normalize_text: bool = False,
         num_step: int = DEFAULT_TTS_NUM_STEP,
+        render_variant: str | None = None,
     ) -> str:
         payload = (
             f"{text}|{instruct}|{ref_audio}|{ref_text}|{speed:.2f}|"
-            f"{language or ''}|nt={int(bool(normalize_text))}|ns={int(num_step)}"
+            f"{language or ''}|nt={int(bool(normalize_text))}|ns={int(num_step)}|"
+            f"v2|norm={NORMALIZATION_VERSION}|ref={reference_identity(ref_audio)!r}|"
+            f"render={render_variant or render_identity('omnivoice')}"
         )
         return hashlib.md5(payload.encode("utf-8")).hexdigest()
 
@@ -1336,6 +1341,7 @@ class TTSEngine:
             language=language,
             normalize_text=normalize_text,
             num_step=num_step,
+            render_variant=getattr(self, "_render_variant", None),
         )
         path = self.cache_path(key)
 
@@ -1454,6 +1460,7 @@ class TTSEngine:
                 language=language,
                 normalize_text=normalize_text,
                 num_step=num_step,
+                render_variant=getattr(self, "_render_variant", None),
             )
             path = self.cache_path(key)
 

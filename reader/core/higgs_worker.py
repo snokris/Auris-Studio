@@ -13,11 +13,49 @@ import os
 import sys
 import threading
 import traceback
+import inspect
+from collections import OrderedDict
 
 
 PREFIX = "AURIS_STUDIO_HIGGS_JSON:"
 _REPLY_LOCK = threading.Lock()
 _PROTOCOL_STDOUT = sys.stdout
+
+
+class ReferenceCodeCache:
+    """Worker-local CPU token LRU; never share tokens between model loads."""
+
+    def __init__(self, model, limit=16):
+        self.model = model
+        self.limit = max(1, limit)
+        self.entries = OrderedDict()
+        try:
+            self.supported = os.environ.get("AURIS_STUDIO_HIGGS_REFERENCE_CACHE", "1") != "0" and callable(getattr(model, "_encode_reference", None)) and (
+                "reference_codes" in inspect.signature(model.generate_speech).parameters
+            )
+        except (TypeError, ValueError):
+            self.supported = False
+
+    def get(self, path):
+        if not self.supported:
+            return None
+        import soundfile as sf
+        import torch
+
+        stat = os.stat(path)
+        key = (os.path.abspath(path), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+        if key in self.entries:
+            self.entries.move_to_end(key)
+            return self.entries[key]
+        audio, sr = sf.read(path, always_2d=False)
+        with torch.no_grad():
+            codes = self.model._encode_reference(
+                torch.from_numpy(reference_array(audio)), int(sr)
+            ).detach().cpu()
+        self.entries[key] = codes
+        while len(self.entries) > self.limit:
+            self.entries.popitem(last=False)
+        return codes
 
 
 def reply(payload: dict) -> None:
@@ -154,6 +192,7 @@ def main() -> None:
         }
     )
 
+    reference_cache = ReferenceCodeCache(model)
     for line in sys.stdin:
         try:
             request = json.loads(line)
@@ -173,14 +212,14 @@ def main() -> None:
             kwargs = dict(request["generation"])
             ref_path = request.get("reference_audio")
             if ref_path:
-                audio, sr = sf.read(ref_path, always_2d=False)
-                kwargs.update(
-                    {
-                        "reference_audio": torch.from_numpy(reference_array(audio)),
-                        "reference_sample_rate": int(sr),
-                        "reference_text": request.get("reference_text") or None,
-                    }
-                )
+                codes = reference_cache.get(ref_path)
+                if codes is None:
+                    audio, sr = sf.read(ref_path, always_2d=False)
+                    kwargs["reference_audio"] = torch.from_numpy(reference_array(audio))
+                    kwargs["reference_sample_rate"] = int(sr)
+                else:
+                    kwargs["reference_codes"] = codes
+                kwargs["reference_text"] = request.get("reference_text") or None
             # Match the known-good direct_speech() path. Cancellation is handled
             # by terminating this isolated process from the parent.
             output = model.generate_speech(

@@ -2,6 +2,7 @@ import io
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import app as app_module
 from core import database
@@ -45,7 +46,9 @@ class VoiceReferenceApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()['ref_audio_name'], 'narrator voice.wav')
 
-        page = self.client.get('/voice-studio/1')
+        # Test the uploaded reference UI without loading a real GPU model.
+        with patch.object(app_module.tts, 'load_async'):
+            page = self.client.get('/voice-studio/1')
         self.assertIn(b'narrator voice.wav', page.data)
         self.assertIn(b'The exact narrator transcript.', page.data)
 
