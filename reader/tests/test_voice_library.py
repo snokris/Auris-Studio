@@ -60,6 +60,9 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertLess(settings.index(b'id="voice-library"'), settings.index(b'Higgs TTS 3'))
         self.assertIn(b'id="synthetic-voice-list"', settings)
         self.assertIn(b'id="reference-voice-list"', settings)
+        self.assertIn(b'id="reference-sample-text"', settings)
+        self.assertIn(b'id="preview-reference-voice"', settings)
+        self.assertIn(b'id="saved-voice-preview-text"', settings)
         self.assertIn(b'id="reset-voice-preview-text"', settings)
         self.assertIn(b'id="new-synthetic-candidate"', settings)
         self.assertNotIn(b'id="play-synthetic-candidate"', settings)
@@ -119,6 +122,27 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertIsNone(book['narrator_voice_id'])
         self.assertFalse(os.path.exists(voice['ref_audio_path']))
         self.assertEqual(self.client.post('/api/books/1/chapters/1/generate').status_code, 409)
+
+    def test_unsaved_reference_preview_reads_its_own_text(self):
+        with patch.object(app_module.tts, 'status', return_value={'state': 'ready'}), patch.object(
+            app_module.tts, 'generate_preview', return_value={'cache_key': 'reference-preview'}
+        ) as generate:
+            response = self.client.post('/api/voices/reference/preview', data={
+                'ref_text': 'Ez hangzik el a WAV-ban.',
+                'preview_text': 'Vajon ezt olvassa fel?',
+                'file': (io.BytesIO(wav_bytes()), 'sample.wav'),
+            }, content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['audio_url'], '/api/audio/reference-preview')
+        self.assertEqual(generate.call_args.kwargs['sample_text'], 'Vajon ezt olvassa fel?')
+        self.assertEqual(generate.call_args.kwargs['ref_text'], 'Ez hangzik el a WAV-ban.')
+        self.assertFalse(os.path.exists(generate.call_args.kwargs['ref_audio']))
+
+        missing = self.client.post('/api/voices/reference/preview', data={
+            'ref_text': 'Ez hangzik el a WAV-ban.',
+            'preview_text': 'Vajon ezt olvassa fel?',
+        })
+        self.assertEqual(missing.status_code, 400)
 
     def test_book_preview_and_save_use_the_edited_preview_text(self):
         created = self.client.post('/api/voices/reference', data={
