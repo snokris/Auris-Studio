@@ -692,6 +692,12 @@ code {
 .chapter-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
 .chapter-content p { margin-bottom: 1.4em; }
+.chapter-content .reader-paragraph {
+  margin-bottom: 0;
+  padding-bottom: 1.4em;
+  cursor: pointer;
+}
+.chapter-content .reader-paragraph:hover { background: var(--highlight); }
 .chapter-content h1, .chapter-content h2, .chapter-content h3 {
   font-weight: normal; color: var(--text); margin: 2em 0 0.8em;
 }
