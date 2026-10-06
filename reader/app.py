@@ -9,6 +9,7 @@ import os
 import secrets
 import shutil
 import sqlite3
+import tempfile
 import threading
 import time
 import uuid
@@ -1636,6 +1637,40 @@ def save_reference_voice():
         _delete_file_if_exists(path)
         return jsonify({'error': 'A reference voice with that name already exists.'}), 409
     return jsonify({'ok': True, 'id': voice_id, 'name': name})
+
+
+@app.route('/api/voices/reference/preview', methods=['POST'])
+def preview_unsaved_reference_voice():
+    if _export_exclusive_active():
+        return jsonify({'error': 'Voice preview is paused during export.'}), 503
+    try:
+        transcript = _voice_text(request.form.get('ref_text'))
+        audio = _uploaded_voice_wav(request.files.get('file'))
+        sample_text = request.form.get('preview_text')
+        if not isinstance(sample_text, str) or not sample_text.strip():
+            raise ValueError('Enter the text to read in the preview.')
+        sample_text = sample_text.strip()
+        if len(sample_text) > MAX_NARRATOR_PREVIEW_TEXT_LENGTH:
+            raise ValueError('Preview text is too long (max 1000 characters).')
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    if tts.status().get('state') != 'ready':
+        tts.load_async()
+        return jsonify({'error': 'Higgs is loading. Try again shortly.'}), 503
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as reference:
+            reference.write(audio)
+            path = reference.name
+        result = tts.generate_preview(
+            instruct='', sample_text=sample_text, ref_audio=path,
+            ref_text=transcript, language='hu',
+        )
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+    finally:
+        _delete_file_if_exists(path)
+    return jsonify({'audio_url': f'/api/audio/{result["cache_key"]}'})
 
 
 @app.route('/api/voices/<int:voice_id>', methods=['PATCH'])

@@ -6,18 +6,17 @@
 
   <section class="settings-section" id="voice-library">
     <div class="settings-section-title">Narrator voice library</div>
-    <p class="section-desc">1. Create or upload a voice. 2. Preview and save it under a name. 3. Choose the saved voice for a book in Voice Studio.</p>
-    <div class="preview-text-section">
-      <label for="synthetic-sample-text">Preview text</label>
-      <textarea id="synthetic-sample-text" class="reference-text" rows="3" maxlength="300" required>{{ synthetic_sample_text }}</textarea>
-      <div class="reference-actions">
-        <button id="reset-voice-preview-text" class="btn btn-sm btn-ghost" type="button">Reset to default</button>
-      </div>
-      <p class="studio-note">Synthetic candidates speak this text. Saved voice previews use it too.</p>
-    </div>
+    <p class="section-desc">Create and preview a voice here, save it under a name, then choose it for a book in Voice Studio.</p>
     <div class="voice-library-group">
       <h2>Create a synthetic voice</h2>
-      <p class="studio-note">Preview generates a voice from the text above. Listen, then try another variation or save the one you like.</p>
+      <div class="preview-text-section">
+        <label for="synthetic-sample-text">Text to read</label>
+        <textarea id="synthetic-sample-text" class="reference-text" rows="3" maxlength="300" required>{{ synthetic_sample_text }}</textarea>
+        <div class="reference-actions">
+          <button id="reset-voice-preview-text" class="btn btn-sm btn-ghost" type="button">Reset to default</button>
+        </div>
+      </div>
+      <p class="studio-note">Preview creates a new synthetic voice reading this text. Listen, then save it or try another variation.</p>
       <div class="reference-actions">
         <button id="generate-synthetic-voice" class="btn btn-sm btn-ghost preview-btn" type="button" aria-busy="false" aria-pressed="false">
           <span class="preview-spinner" aria-hidden="true"></span><span class="preview-label">&#9654; Preview</span>
@@ -47,8 +46,25 @@
         <input id="reference-voice-name" class="text-input" type="text" maxlength="80" placeholder="e.g. Calm Hungarian narrator">
       </div>
       <div class="setting-row">
-        <label for="reference-voice-text">Exact reference transcript</label>
+        <label for="reference-voice-file">Reference WAV recording</label>
+        <input id="reference-voice-file" type="file" accept=".wav,audio/wav" aria-label="Reference WAV recording">
+      </div>
+      <div class="setting-row">
+        <label for="reference-voice-text">Exact words spoken in the WAV</label>
         <textarea id="reference-voice-text" class="text-input" rows="3" maxlength="20000"></textarea>
+      </div>
+      <p class="studio-note">This transcript must match the recording. It teaches Higgs the voice; it is not the preview script.</p>
+      <div class="preview-text-section">
+        <label for="reference-sample-text">Text to read in preview</label>
+        <textarea id="reference-sample-text" class="reference-text" rows="3" maxlength="1000" required>{{ synthetic_sample_text }}</textarea>
+        <div class="reference-actions">
+          <button id="reset-reference-preview-text" class="btn btn-sm btn-ghost" type="button">Reset to default</button>
+        </div>
+      </div>
+      <div class="reference-actions">
+        <button id="preview-reference-voice" class="btn btn-sm btn-ghost preview-btn" type="button" aria-busy="false" aria-pressed="false">
+          <span class="preview-spinner" aria-hidden="true"></span><span class="preview-label">&#9654; Preview</span>
+        </button>
       </div>
       <div class="studio-note">Describe the recording you uploaded (optional)</div>
       <div class="voice-tag-grid voice-save-tags" id="reference-voice-tags">
@@ -58,14 +74,20 @@
         <label>Accent<select id="reference-voice-accent" class="select-input"><option value="unknown">Unspecified</option><option value="hungarian">Hungarian</option><option value="other">Other</option></select></label>
       </div>
       <div class="reference-actions">
-        <input id="reference-voice-file" type="file" accept=".wav,audio/wav" aria-label="Reference WAV">
         <button id="save-reference-voice" class="btn btn-sm btn-primary" type="button">Save reference voice</button>
       </div>
       <p class="studio-note">Use a clean 3–10 second single-speaker WAV in Hungarian with its exact transcript. Only use a recording with the speaker's consent.</p>
     </div>
     <div class="voice-library-group" id="saved-voices">
       <h2>Saved voices</h2>
-      <p class="studio-note">Preview a saved voice with the text above. Edit its details here, or select it for a book in Voice Studio.</p>
+      <div class="preview-text-section">
+        <label for="saved-voice-preview-text">Text to read in saved voice previews</label>
+        <textarea id="saved-voice-preview-text" class="reference-text" rows="3" maxlength="1000" required>{{ synthetic_sample_text }}</textarea>
+        <div class="reference-actions">
+          <button id="reset-saved-voice-preview-text" class="btn btn-sm btn-ghost" type="button">Reset to default</button>
+        </div>
+      </div>
+      <p class="studio-note">Open a saved voice below to preview, edit, export or delete it. In Voice Studio you can select it for a book.</p>
       <details id="voice-filters-panel"><summary>Filter saved voices</summary>
         <div class="voice-tag-grid" id="voice-filters">
           <label>Gender<select id="voice-filter-gender" class="select-input"><option value="">All</option><option value="female">Female</option><option value="male">Male</option></select></label>

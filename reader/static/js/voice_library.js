@@ -170,7 +170,7 @@ function renderVoice(voice) {
   name.setAttribute('aria-label', `${voice.name} name`);
   nameLabel.appendChild(name);
   const transcriptLabel = document.createElement('label');
-  transcriptLabel.textContent = 'Reference transcript';
+  transcriptLabel.textContent = 'Exact words in this voice’s WAV';
   const transcript = document.createElement('textarea');
   transcript.className = 'text-input';
   transcript.rows = 2;
@@ -214,7 +214,7 @@ function renderVoice(voice) {
       voiceMessage(`Generating preview: ${voice.name}…`);
       const result = await voiceResponse(await fetch(`/api/voices/${voice.id}/preview`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({text: getVoicePreviewText()}),
+        body: JSON.stringify({text: getSavedVoicePreviewText()}),
       }));
       await playVoiceUrl(result.audio_url, previewButton);
       voiceMessage(`Playing: ${voice.name}`);
@@ -286,14 +286,21 @@ function renderVoice(voice) {
 }
 
 const voicePreviewText = document.getElementById('synthetic-sample-text');
+const referencePreviewText = document.getElementById('reference-sample-text');
+const savedVoicePreviewText = document.getElementById('saved-voice-preview-text');
 const candidatePreviewButton = document.getElementById('generate-synthetic-voice');
 const newCandidateButton = document.getElementById('new-synthetic-candidate');
+const referencePreviewButton = document.getElementById('preview-reference-voice');
 
-function getVoicePreviewText() {
-  const text = voicePreviewText.value.trim() || window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
-  voicePreviewText.value = text;
+function getPreviewText(field) {
+  const text = field.value.trim() || window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
+  field.value = text;
   return text;
 }
+
+function getVoicePreviewText() { return getPreviewText(voicePreviewText); }
+function getReferencePreviewText() { return getPreviewText(referencePreviewText); }
+function getSavedVoicePreviewText() { return getPreviewText(savedVoicePreviewText); }
 
 function clearSyntheticCandidate() {
   syntheticCandidateId = null;
@@ -304,9 +311,64 @@ function clearSyntheticCandidate() {
 
 voicePreviewText.addEventListener('input', clearSyntheticCandidate);
 voicePreviewText.addEventListener('blur', getVoicePreviewText);
+referencePreviewText.addEventListener('blur', getReferencePreviewText);
+savedVoicePreviewText.addEventListener('blur', getSavedVoicePreviewText);
+referencePreviewText.addEventListener('input', () => {
+  if (activeVoicePreviewButton === referencePreviewButton) stopVoicePreview();
+});
+document.getElementById('reference-voice-text').addEventListener('input', () => {
+  if (activeVoicePreviewButton === referencePreviewButton) stopVoicePreview();
+});
+document.getElementById('reference-voice-file').addEventListener('change', () => {
+  if (activeVoicePreviewButton === referencePreviewButton) stopVoicePreview();
+});
+savedVoicePreviewText.addEventListener('input', () => {
+  if (activeVoicePreviewButton && activeVoicePreviewButton !== candidatePreviewButton &&
+      activeVoicePreviewButton !== referencePreviewButton) stopVoicePreview();
+});
 document.getElementById('reset-voice-preview-text').addEventListener('click', () => {
   voicePreviewText.value = window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
   clearSyntheticCandidate();
+});
+document.getElementById('reset-reference-preview-text').addEventListener('click', () => {
+  referencePreviewText.value = window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
+  if (activeVoicePreviewButton === referencePreviewButton) stopVoicePreview();
+});
+document.getElementById('reset-saved-voice-preview-text').addEventListener('click', () => {
+  savedVoicePreviewText.value = window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
+  if (activeVoicePreviewButton && activeVoicePreviewButton !== candidatePreviewButton &&
+      activeVoicePreviewButton !== referencePreviewButton) stopVoicePreview();
+});
+
+referencePreviewButton.addEventListener('click', async () => {
+  if (activeVoicePreviewButton === referencePreviewButton) {
+    stopVoicePreview();
+    return;
+  }
+  const file = document.getElementById('reference-voice-file').files?.[0];
+  const transcript = document.getElementById('reference-voice-text').value.trim();
+  if (!file || !transcript) {
+    voiceMessage('Choose a reference WAV and enter the exact words spoken in it.', true);
+    return;
+  }
+  stopVoicePreview();
+  setVoicePreviewState(referencePreviewButton, 'loading');
+  try {
+    await waitForVoiceModel();
+    voiceMessage('Generating reference voice preview…');
+    const form = new FormData();
+    form.append('file', file);
+    form.append('ref_text', transcript);
+    form.append('preview_text', getReferencePreviewText());
+    const result = await voiceResponse(await fetch('/api/voices/reference/preview', {
+      method: 'POST', body: form,
+    }));
+    await playVoiceUrl(result.audio_url, referencePreviewButton);
+    voiceMessage('Playing the text from the reference preview field.');
+  } catch (error) {
+    setVoicePreviewState(referencePreviewButton, 'idle');
+    voiceMessage(error.message, true);
+  }
 });
 
 async function previewSyntheticCandidate(forceNew = false) {
