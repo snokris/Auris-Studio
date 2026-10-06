@@ -65,6 +65,21 @@ Ezek egyetlen helyi, nem szabványos futás idői, eltérő kimeneti hanghosszal
 nem tekinthetők végleges sebességi rangsornak. A természetes magyar kiejtés,
 hangsúly, érzelem és kérdő hanglejtés minőségéről a meghallgatás dönt.
 
+## Meghallgatási döntés
+
+A felhasználó szerint egyik alternatíva sem közelíti meg a jelenlegi
+Higgs/MLX természetes magyar felolvasását. A kipróbált MOSS Local 1.5 / 4 bites
+MLX-változat különösen érthetetlen, nem hat magyar felolvasásnak. A Piper
+sebessége és a Supertonic választható hangjai ezt a minőségi különbséget nem
+ellensúlyozzák. **A Higgs/MLX marad az alkalmazás motorja; az alternatívákat
+nem integráljuk.**
+
+A MOSS-nál az MLX feldolgozó forrása alapján a `Hungarian` címke bekerült a
+generálási prompt `Language` mezőjébe. Nem látszik egyszerűen elhagyott
+nyelvi beállítás; a jelenlegi eredmény ugyanakkor csak a fenti kvantált
+Local-változatra és erre a referenciahangra vonatkozik, nem bizonyítja, hogy
+a MOSS minden változata alkalmatlan magyarra.
+
 Források: [Supertonic dokumentáció](https://github.com/supertone-oss-archive/supertonic-py/blob/main/docs/index.md),
 [MOSS-TTS MLX használat](https://github.com/Blaizzy/mlx-audio/blob/main/mlx_audio/tts/models/moss_tts/README.md),
 [Piper magyar hangok](https://github.com/rhasspy/piper/blob/master/VOICES.md),
