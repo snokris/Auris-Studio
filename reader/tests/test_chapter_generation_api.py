@@ -57,10 +57,15 @@ class ChapterGenerationApiTest(unittest.TestCase):
         app_module._startup_complete = True
         app_module.tts = _FakeTTS(self.tmp.name)
         database.init_db()
+        ref_path = os.path.join(self.tmp.name, 'narrator.wav')
+        with open(ref_path, 'wb') as ref_file:
+            ref_file.write(b'RIFF-test')
         with database.get_conn() as conn:
             conn.execute(
-                "INSERT INTO books (id, title, file_path, file_type, language) "
-                "VALUES (1, 'Test', 'test.txt', 'txt', 'en')"
+                "INSERT INTO books (id, title, file_path, file_type, language, "
+                "narrator_ref_audio_path) "
+                "VALUES (1, 'Test', 'test.txt', 'txt', 'en', ?)",
+                (ref_path,),
             )
             conn.execute(
                 "INSERT INTO chapters "

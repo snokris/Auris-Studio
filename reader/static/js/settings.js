@@ -72,8 +72,7 @@ async function loadSettings() {
   // document.getElementById('llm-max-characters').value = _settings.llm_max_characters ?? 60;
   // toggleCharacterDetection(detectionMode);
 
-  // Narrator
-  document.getElementById('narrator-instruct').value = _settings.narrator_instruct || '';
+  // Narrator voices are managed by voice_library.js, not the legacy instruct.
   // MULTI_VOICE: minden könyv egynarrátoros, a kapcsoló ki van kommentelve.
   // document.getElementById('default-single-narrator-mode').checked = Boolean(_settings.single_narrator_mode);
 
@@ -395,7 +394,6 @@ async function saveSettings() {
     // llm_api_key:       document.getElementById('llm-api-key').value,
     // llm_timeout_sec:   parseInt(document.getElementById('llm-timeout-sec').value, 10) || 600,
     // llm_max_characters: parseInt(document.getElementById('llm-max-characters').value, 10) || 60,
-    narrator_instruct: document.getElementById('narrator-instruct').value.trim(),
     // single_narrator_mode: document.getElementById('default-single-narrator-mode').checked,
     normalize_text:    document.getElementById('normalize-text').checked,
     audio_format:      document.getElementById('audio-format').value,
@@ -591,7 +589,11 @@ function esc(s) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-document.querySelector('.settings-page').addEventListener('input', markSettingsDirty);
-document.querySelector('.settings-page').addEventListener('change', markSettingsDirty);
+document.querySelector('.settings-page').addEventListener('input', event => {
+  if (!event.target.closest('#voice-library')) markSettingsDirty();
+});
+document.querySelector('.settings-page').addEventListener('change', event => {
+  if (!event.target.closest('#voice-library')) markSettingsDirty();
+});
 loadSettings();
 loadCacheStats();

@@ -42,6 +42,7 @@ def init_db():
             narrator_ref_audio_name TEXT,
             narrator_ref_text TEXT,
             narrator_preview_text TEXT,
+            narrator_voice_id INTEGER,
             added_at    TEXT DEFAULT (datetime('now')),
             last_read   TEXT,
             total_chapters INTEGER DEFAULT 0,
@@ -121,6 +122,22 @@ def init_db():
             created_at     TEXT DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS voices (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            name           TEXT NOT NULL,
+            kind           TEXT NOT NULL CHECK(kind IN ('synthetic', 'reference')),
+            ref_audio_path TEXT NOT NULL,
+            ref_audio_name TEXT,
+            ref_text       TEXT NOT NULL,
+            gender         TEXT DEFAULT 'unknown',
+            age            TEXT DEFAULT 'unknown',
+            pitch          TEXT DEFAULT 'unknown',
+            accent         TEXT DEFAULT 'unknown',
+            legacy_preset_id INTEGER UNIQUE,
+            created_at     TEXT DEFAULT (datetime('now')),
+            UNIQUE(kind, name)
+        );
+
         CREATE TABLE IF NOT EXISTS bookmarks (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             book_id       INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
@@ -181,6 +198,17 @@ def init_db():
             conn.execute("ALTER TABLE books ADD COLUMN narrator_ref_text TEXT")
         if "narrator_preview_text" not in cols:
             conn.execute("ALTER TABLE books ADD COLUMN narrator_preview_text TEXT")
+        if "narrator_voice_id" not in cols:
+            conn.execute("ALTER TABLE books ADD COLUMN narrator_voice_id INTEGER")
+
+        voice_cols = {
+            row['name'] for row in conn.execute('PRAGMA table_info(voices)').fetchall()
+        }
+        for column in ('gender', 'age', 'pitch', 'accent'):
+            if column not in voice_cols:
+                conn.execute(
+                    f"ALTER TABLE voices ADD COLUMN {column} TEXT DEFAULT 'unknown'"
+                )
         if "character_analysis_status" not in cols:
             conn.execute(
                 "ALTER TABLE books ADD COLUMN character_analysis_status TEXT DEFAULT 'pending'"

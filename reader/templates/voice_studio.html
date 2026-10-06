@@ -6,174 +6,32 @@
     <a href="/reader/{{ book.id }}" class="btn btn-sm btn-ghost">&#8592; Reader</a>
     <h1>Voice Studio &mdash; <em>{{ book.title }}</em></h1>
   </div>
-
-  {# MULTI_VOICE: a többszereplős narráció ki van kapcsolva (app.py:
-     MULTI_VOICE_NARRATION = False). Minden könyv egynarrátoros, ezért a
-     kapcsolónak nincs értelme a felületen. Visszakapcsoláskor vedd ki ezt
-     a kommentet.
-  <div class="studio-narrator">
-    <div class="studio-section-title">Narration mode</div>
-    <div class="char-list">
-      <div class="character-card narrator-card">
-        <div class="char-avatar narrator-avatar">1</div>
-        <div class="char-details">
-          <span class="char-name">Single narrator</span>
-          <label class="narrator-mode-row">
-            <input type="checkbox" id="single-narrator-mode">
-            <span>Use this narrator for the whole book</span>
-          </label>
-          <div class="studio-note">
-            When enabled, the narrator voice reads every line, character detection
-            is turned off, and already detected characters are forgotten for this
-            book. Turning it off runs character detection again.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  #}
-
   <div class="studio-narrator">
     <div class="studio-section-title">Narrator</div>
     <div class="char-list">
       <div class="character-card narrator-card">
         <div class="char-avatar narrator-avatar">N</div>
         <div class="char-details">
-          <span class="char-name">Narrator</span>
-          <div class="voice-controls">
-            <select id="narrator-gender" class="vc-select">
-              <option value="female">Female</option>
-              <option value="male" selected>Male</option>
-            </select>
-            <select id="narrator-age" class="vc-select">
-              <option value="child">Child</option>
-              <option value="teenager">Teenager</option>
-              <option value="young adult">Young adult</option>
-              <option value="middle-aged">Middle-aged</option>
-              <option value="elderly" selected>Elderly</option>
-            </select>
-            <select id="narrator-pitch" class="vc-select">
-              <option value="very low pitch">Very low pitch</option>
-              <option value="low pitch" selected>Low pitch</option>
-              <option value="moderate pitch">Moderate pitch</option>
-              <option value="high pitch">High pitch</option>
-              <option value="very high pitch">Very high pitch</option>
-            </select>
-            <select id="narrator-accent" class="vc-select">
-              <option value="no accent">None (natural)</option>
-              <option value="hungarian accent">Hungarian</option>
-              <option value="american accent">American</option>
-              <option value="british accent" selected>British</option>
-              <option value="australian accent">Australian</option>
-              <option value="canadian accent">Canadian</option>
-              <option value="indian accent">Indian</option>
-              <option value="chinese accent">Chinese</option>
-              <option value="korean accent">Korean</option>
-              <option value="japanese accent">Japanese</option>
-            </select>
-          </div>
-          <div class="preview-text-section">
-            <label for="narrator-preview-text">Preview text</label>
-            <textarea id="narrator-preview-text" class="reference-text" rows="3" maxlength="1000" required>{{ book.narrator_preview_text }}</textarea>
-            <div class="reference-actions">
-              <button class="btn btn-sm btn-ghost" type="button" onclick="resetNarratorPreviewText()">Reset to default</button>
-            </div>
-            <div class="studio-note">Preview reads this text. Save keeps it for this book.</div>
-          </div>
-          <div class="char-card-footer">
-            <span class="instruct-preview" id="narrator-instruct-preview"></span>
-            <button class="btn btn-sm btn-ghost preview-btn" type="button" data-char-id="narrator" aria-busy="false" aria-pressed="false">
+          <span class="char-name">Narrator voice</span>
+          <p class="studio-note">Choose a voice saved in Settings. The same voice is used for preview, reading, and export.</p>
+          <div class="reference-actions">
+            <select id="book-narrator-voice" class="vc-select" aria-label="Narrator voice"></select>
+            <button id="book-voice-preview" class="btn btn-sm btn-ghost preview-btn" type="button" aria-busy="false" aria-pressed="false">
               <span class="preview-spinner" aria-hidden="true"></span>
               <span class="preview-label" aria-live="polite">&#9654; Preview</span>
             </button>
-            <button class="btn btn-sm btn-primary" onclick="saveNarrator()">Save</button>
+            <button id="book-voice-save" class="btn btn-sm btn-primary" type="button">Save for this book</button>
           </div>
-          <div id="narrator-ref-status" class="reference-status{% if not book.narrator_ref_audio_path %} hidden{% endif %}">
-            <span class="reference-status-label">Active reference:</span>
-            <span id="narrator-ref-name">{{ book.narrator_ref_audio_name or 'Previously uploaded WAV' }}</span>
-          </div>
-          <div class="clone-section">
-            <label for="narrator-ref-text">Reference audio transcript</label>
-            <textarea id="narrator-ref-text" class="reference-text" rows="3" placeholder="Type exactly what is spoken in the reference audio.">{{ book.narrator_ref_text or '' }}</textarea>
-            <div class="reference-actions">
-              <label class="btn btn-sm btn-ghost file-picker">
-                <span>Load transcript TXT</span>
-                <input id="narrator-ref-text-file" type="file" accept=".txt,text/plain" onchange="loadNarratorRefText(event)">
-              </label>
-            </div>
-            <div class="studio-note">A matching transcript gives Higgs the best cloning quality. The TXT content is loaded into this field; save it or upload the audio to persist it.</div>
-            <div class="reference-actions">
-              <label class="btn btn-sm btn-ghost file-picker">
-                <span>Choose reference WAV</span>
-                <input id="narrator-ref-file" type="file" accept=".wav,audio/wav" onchange="uploadNarratorRef(event)">
-              </label>
-              <button
-                id="remove-narrator-ref-btn"
-                class="btn btn-sm btn-ghost"
-                type="button"
-                onclick="removeNarratorRef()"
-              >Remove reference</button>
-            </div>
-            <div class="studio-note">Best results: a clean, single-speaker, 3–10 second clip in the target language.</div>
-          </div>
-          <div class="clone-section">
-            <label for="voice-preset-select">Saved voices</label>
-            <div class="reference-actions">
-              <select id="voice-preset-select" class="vc-select"></select>
-              <button class="btn btn-sm btn-primary" type="button" onclick="applyVoicePreset()">Apply to this book</button>
-              <button class="btn btn-sm btn-ghost" type="button" onclick="deleteVoicePreset()">Delete preset</button>
-            </div>
-            <div class="reference-actions">
-              <input id="voice-preset-name" class="vc-select" type="text" maxlength="80"
-                     placeholder="New preset name (e.g. Károly – warm male)">
-              <button class="btn btn-sm btn-ghost" type="button" onclick="saveVoicePreset()">Save current voice as preset</button>
-            </div>
-            <div class="reference-actions">
-              <button class="btn btn-sm btn-ghost" type="button" onclick="exportVoicePreset()">Export selected voice</button>
-              <label class="btn btn-sm btn-ghost file-picker">
-                <span>Import voice file</span>
-                <input id="voice-preset-import-file" type="file" accept=".aurisvoice" onchange="importVoicePreset(event)">
-              </label>
-            </div>
-            <div class="studio-note" id="voice-preset-note">
-              Save stores the narrator's current reference WAV and transcript under a name.
-              Apply copies a saved voice onto this book's narrator; the book's generated
-              audio is cleared so it regenerates with the new voice. Deleting a preset
-              does not affect books already using it.
-            </div>
-            <div class="studio-note">
-              Export packs the selected voice — the reference WAV and its transcript —
-              into a single <code>.aurisvoice</code> file you can back up or move to
-              another machine. Import adds such a file back as a saved voice; if the
-              name is taken it is added as “Name (2)”.
-            </div>
-          </div>
+          <div class="studio-note"><a href="/settings#voice-library">Create or edit voices in Settings</a></div>
+          <div id="book-voice-status" class="studio-note" role="status" aria-live="polite"></div>
         </div>
       </div>
     </div>
   </div>
-
-  {# MULTI_VOICE: szereplőlista kikommentelve — az app egynarrátoros.
-  <div class="studio-characters">
-    <div class="studio-section-title">
-      Characters <span id="char-count" class="muted"></span>
-    </div>
-    <div id="character-voice-note" class="studio-note hidden"></div>
-    <div id="char-list" class="char-list">
-      <div class="loading-spinner">Detecting characters...</div>
-    </div>
-  </div>
-  #}
 </div>
-
 <audio id="preview-audio" style="display:none"></audio>
 {% endblock %}
 {% block scripts %}
-<script>window.BOOK_ID = {{ book.id }};</script>
-<script>window.NARRATOR_INSTRUCT = {{ book.narrator_instruct|tojson }};</script>
-<script>window.DEFAULT_NARRATOR_PREVIEW_TEXT = {{ default_narrator_preview_text|tojson }};</script>
-<script>window.SINGLE_NARRATOR_MODE = {{ 1 if book.single_narrator_mode else 0 }};</script>
-<script>window.NARRATOR_HAS_REF_AUDIO = {{ 1 if book.narrator_ref_audio_path else 0 }};</script>
-<script>window.NARRATOR_REF_AUDIO_NAME = {{ (book.narrator_ref_audio_name or '')|tojson }};</script>
-<script src="/static/js/voice_studio.js"></script>
+<script>window.BOOK_ID = {{ book.id }}; window.BOOK_VOICE_ID = {{ book.narrator_voice_id|tojson }};</script>
+<script src="/static/js/book_voice.js"></script>
 {% endblock %}

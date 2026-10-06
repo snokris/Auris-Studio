@@ -91,7 +91,8 @@ class SingleVoiceOnlyTest(unittest.TestCase):
         self.assertNotIn(b'Narration mode', page)
         # The narrator card itself must stay.
         self.assertIn(b'Narrator', page)
-        self.assertIn(b'Saved voices', page)
+        self.assertIn(b'id="book-narrator-voice"', page)
+        self.assertNotIn(b'id="narrator-gender"', page)
 
     def test_settings_page_shows_no_character_detection(self):
         page = self.client.get('/settings').data

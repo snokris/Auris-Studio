@@ -49,8 +49,8 @@ class VoiceReferenceApiTest(unittest.TestCase):
         # Test the uploaded reference UI without loading a real GPU model.
         with patch.object(app_module.tts, 'load_async'):
             page = self.client.get('/voice-studio/1')
-        self.assertIn(b'narrator voice.wav', page.data)
-        self.assertIn(b'The exact narrator transcript.', page.data)
+        self.assertIn(b'id="book-narrator-voice"', page.data)
+        self.assertIn(b'/settings#voice-library', page.data)
 
         response = self.client.delete('/api/books/1/narrator-ref-audio')
         self.assertEqual(response.status_code, 200)

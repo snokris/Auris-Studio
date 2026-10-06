@@ -1082,6 +1082,25 @@ code {
   border-bottom: 1px solid var(--border);
 }
 
+.voice-library-group { padding: 12px 0 20px; border-bottom: 1px solid var(--border); }
+.voice-library-group:last-of-type { border-bottom: 0; }
+.voice-library-group h2 { font-size: 1rem; font-weight: 600; margin: 0 0 14px; }
+.voice-library-list { display: grid; gap: 10px; margin-top: 16px; }
+.voice-tag-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px; margin: 12px 0;
+}
+.voice-tag-grid label { display: grid; gap: 5px; font-size: .78rem; color: var(--text2); }
+.voice-tag-grid select { width: 100%; }
+.voice-library-card {
+  display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg);
+}
+.voice-library-card .reference-actions { align-items: center; }
+.voice-library-card input[type="file"] { max-width: 100%; font-size: .78rem; }
+#synthetic-voice-name { flex: 1; min-width: 180px; }
+@media (max-width: 600px) { .voice-tag-grid { grid-template-columns: 1fr; } }
+
 .section-desc { font-size: 0.83rem; color: var(--text2); margin-bottom: 14px; line-height: 1.5; }
 
 .setting-row {
