@@ -46,6 +46,7 @@ class NarratorPreviewTextTest(unittest.TestCase):
         )
         self.assertIn(b'class="preview-spinner"', page.data)
         self.assertIn(b'aria-busy="false"', page.data)
+        self.assertIn(b'aria-pressed="false"', page.data)
         self.assertEqual(
             self.client.get("/api/books/1/narrator").get_json()["preview_text"],
             app_module.DEFAULT_NARRATOR_PREVIEW_TEXT,

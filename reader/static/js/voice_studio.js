@@ -6,6 +6,7 @@ let singleNarratorMode = Boolean(window.SINGLE_NARRATOR_MODE);
 let narratorHasRefAudio = Boolean(window.NARRATOR_HAS_REF_AUDIO);
 let narratorRefAudioName = window.NARRATOR_REF_AUDIO_NAME || "Previously uploaded WAV";
 const previewAudio = document.getElementById("preview-audio");
+let narratorPreviewState = "idle";
 
 const GENDERS = ["male", "female"];
 const AGES = ["child", "teenager", "young adult", "middle-aged", "elderly"];
@@ -434,16 +435,32 @@ async function saveNarrator() {
   }
 }
 
-async function previewNarrator() {
+function setNarratorPreviewState(state) {
+  narratorPreviewState = state;
   const button = document.querySelector('.preview-btn[data-char-id="narrator"]');
-  if (button?.disabled) return;
   const label = button?.querySelector(".preview-label");
   if (button) {
-    button.disabled = true;
-    button.classList.add("is-loading");
-    button.setAttribute("aria-busy", "true");
+    button.disabled = state === "loading";
+    button.classList.toggle("is-loading", state === "loading");
+    button.classList.toggle("is-playing", state === "playing");
+    button.setAttribute("aria-busy", String(state === "loading"));
+    button.setAttribute("aria-pressed", String(state === "playing"));
   }
-  if (label) label.textContent = "Generating…";
+  if (label) {
+    label.textContent = state === "loading" ? "Generating…" :
+      state === "playing" ? "■ Stop" : "▶ Preview";
+  }
+}
+
+async function previewNarrator() {
+  if (narratorPreviewState === "playing") {
+    previewAudio.pause();
+    previewAudio.currentTime = 0;
+    setNarratorPreviewState("idle");
+    return;
+  }
+  if (narratorPreviewState === "loading") return;
+  setNarratorPreviewState("loading");
 
   try {
     const instruct = updateNarratorPreview();
@@ -460,16 +477,18 @@ async function previewNarrator() {
     }
     previewAudio.src = `${d.audio_url}?t=${Date.now()}`;
     await previewAudio.play();
+    setNarratorPreviewState(previewAudio.paused || previewAudio.ended ? "idle" : "playing");
   } catch (error) {
     alert(`Preview failed: ${error.message || error}`);
   } finally {
-    if (button) {
-      button.disabled = false;
-      button.classList.remove("is-loading");
-      button.setAttribute("aria-busy", "false");
-    }
-    if (label) label.textContent = "▶ Preview";
+    if (narratorPreviewState === "loading") setNarratorPreviewState("idle");
   }
+}
+
+for (const eventName of ["ended", "pause", "error"]) {
+  previewAudio.addEventListener(eventName, () => {
+    if (narratorPreviewState === "playing") setNarratorPreviewState("idle");
+  });
 }
 
 // ── Saved narrator voice presets ────────────────────────────────────────────
