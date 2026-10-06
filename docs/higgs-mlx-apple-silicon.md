@@ -50,19 +50,26 @@ ugyanazzal a beszélővel készült 5–10 másodperces magyar felvétel, benne 
 természetesen elmondott kijelentéssel és kérdéssel, szó szerinti átirattal.
 Mesterségesen felhúzott mondatvég kevésbé megbízható, mint a valódi előadás.
 
-## Alternatívák, ha az MLX-Higgs sem elég
+## Alternatívák állapota (frissítve: 2026-10-06)
 
-1. **MOSS-TTS Local Transformer v1.5 MLX** — hivatalos magyar támogatás,
-   hangklónozás, IPA és írásjel-alapú prozódia; Apple Siliconon ez a legerősebb
-   következő jelölt. Nagyobb helyi modell és külön integráció szükséges.
-2. **F5-TTS Hungarian** — kicsi közösségi magyar modell, de kevés független
-   minőségi bizonyíték és korlátozott érzelemvezérlés.
-3. **ZONOS2/Metal** — kísérleti magyar klónozás és érzelemvezérlés; jelenleg
-   nagyobb integrációs és stabilitási kockázat.
+Az MLX-Higgs az alkalmazás elsődleges Apple Silicon backendje. Az újabb,
+[nyolcmondatos magyar meghallgatási próbában](voice-candidate-audition-2026-10-06.md)
+a felhasználó egyik kipróbált alternatívát sem találta a Higgs szintjéhez
+közelinek:
 
-Az MLX-Higgs az alkalmazás elsődleges Apple Silicon backendje. A MOSS-TTS csak
-akkor indokolt külön A/B ágként, ha egy későbbi meghallgatás új minőségi hibát
-mutat.
+1. **MOSS-TTS Local Transformer v1.5, 4 bites MLX** — a kipróbált kimenet
+   különösen érthetetlennek, nem magyar felolvasásnak hatott. A `Hungarian`
+   nyelvcímke eljutott a modell promptjába. Ez a konkrét próba elutasított;
+   nem állítás a MOSS összes checkpointjáról.
+2. **Supertonic 3 és Piper** — gyorsabb, beépített magyarul használható
+   hangokkal kipróbált alternatívák, de a felhasználói meghallgatáson nem
+   közelítették meg a Higgs természetességét.
+3. **F5-TTS Hungarian és ZONOS2/Metal** — korábban felmerült, de ebben a
+   körben nem tesztelt jelöltek; jelenleg nincs indok az integrációjukra.
+
+Az alternatív motorokat nem kötjük be az alkalmazásba. A következő munka a
+meglévő Higgs/MLX magyar kiejtésének, hangsúlyozásának és sebességének
+finomítása lehet.
 
 ## Második meghallgatási kör: hibrid út
 
