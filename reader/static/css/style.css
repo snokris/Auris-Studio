@@ -1032,6 +1032,7 @@ code {
 }
 .preview-btn.is-loading:disabled { opacity: .85; }
 .preview-btn.is-loading .preview-spinner { display: inline-block; }
+.preview-btn.is-playing { border-color: var(--accent); color: var(--accent); }
 @keyframes preview-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .preview-spinner { animation: none; }
