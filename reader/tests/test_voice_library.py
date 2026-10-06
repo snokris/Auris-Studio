@@ -60,6 +60,9 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertLess(settings.index(b'id="voice-library"'), settings.index(b'Higgs TTS 3'))
         self.assertIn(b'id="synthetic-voice-list"', settings)
         self.assertIn(b'id="reference-voice-list"', settings)
+        self.assertNotIn(b'id="voice-new-tags"', settings)
+        self.assertIn(b'id="synthetic-voice-tags"', settings)
+        self.assertIn(b'id="reference-voice-tags"', settings)
         with patch.object(app_module.tts, 'load_async'):
             book = self.client.get('/voice-studio/1').data
         self.assertIn(b'id="book-narrator-voice"', book)
