@@ -421,20 +421,27 @@ function renderContent(segs) {
     return;
   }
 
-  const html = segs.map((seg, i) => {
+  const paragraphs = [];
+  let paragraphStart = 0;
+  let paragraphSentences = [];
+  segs.forEach((seg, i) => {
     const words = seg.text.split(/(\s+)/);
     const wordSpans = words.map((w, wi) => {
       if (/^\s+$/.test(w)) return w;
       return `<span class="word" data-seg="${i}" data-word="${wi}">${esc(w)}</span>`;
     }).join('');
 
-
     const charAttr = seg.character_name ? ` data-char="${esc(seg.character_name)}"` : '';
     const cls = 'sentence' + (seg.is_dialogue ? ' dialogue-sent' : '');
-    return `<span class="${cls}" data-idx="${i}"${charAttr} onclick="jumpTo(${i})">${wordSpans}</span> `;
-  }).join('');
+    paragraphSentences.push(`<span class="${cls}" data-idx="${i}"${charAttr}>${wordSpans}</span>`);
+    if (seg.ends_paragraph || i === segs.length - 1) {
+      paragraphs.push(`<p class="reader-paragraph" data-start-idx="${paragraphStart}">${paragraphSentences.join(' ')}</p>`);
+      paragraphStart = i + 1;
+      paragraphSentences = [];
+    }
+  });
 
-  container.innerHTML = `<div>${html}</div>`;
+  container.innerHTML = paragraphs.join('');
 
   // Restore font prefs (font may be reset by innerHTML)
   container.style.fontSize   = fontSize + 'px';
@@ -442,10 +449,13 @@ function renderContent(segs) {
   container.style.fontFamily = FONT_FAMILIES[fontFamily] || FONT_FAMILIES.serif;
 }
 
-function jumpTo(idx) {
-  if (isPlaying) playSegment(idx);
-  else { setCurrentSegment(idx, { highlight: true, save: true }); }
-}
+document.getElementById('chapter-content').addEventListener('click', event => {
+  const selected = event.target.closest('.sentence, .reader-paragraph');
+  if (!selected || !event.currentTarget.contains(selected)) return;
+  const idx = selected.classList.contains('sentence')
+    ? Number(selected.dataset.idx) : Number(selected.dataset.startIdx);
+  playSegment(idx);
+});
 
 // ── Playback ──────────────────────────────────────────────────────────────────
 
@@ -792,6 +802,9 @@ async function playSegment(idx) {
   }
   _pendingSegmentIdx = -1;
   const gen = ++_playGen;
+  stopWordHighlight();
+  _audioA.pause();
+  _audioB.pause();
 
   isPlaying = true;
   setCurrentSegment(idx, { highlight: true, save: true });
@@ -828,8 +841,8 @@ async function playSegment(idx) {
 
   } catch(e) {
     if (gen !== _playGen) return;   // stale — a newer segment took over
-    charEl.textContent = e.message;
     stopPlayback();
+    showToast(e.message || 'Playback failed.', 'err');
   }
 }
 
@@ -1599,7 +1612,7 @@ function showToast(msg, type = 'ok') {
   toast.className = `toast ${type}`;
   toast.textContent = msg;
   tc.appendChild(toast);
-  setTimeout(() => toast.remove(), 2500);
+  setTimeout(() => toast.remove(), type === 'err' ? 6000 : 2500);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
