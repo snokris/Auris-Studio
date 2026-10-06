@@ -30,6 +30,7 @@ szünettel. A hangszínen és a hangmagasságon utólag nem módosítottunk.
 | Motor és hang | Összefűzött próba |
 |---|---|
 | Jelenlegi Higgs TTS 3 / MLX | [8 mondat](../reader/audio_cache/benchmarks/voice-candidates-20261006-higgs/all-8.wav) |
+| Higgs TTS 3 / MLX, referencia nélküli alaphang | [8 mondat](../reader/audio_cache/benchmarks/higgs-mlx-unconditioned-20261006/all-8.wav) |
 | MOSS-TTS Local 1.5 / MLX, 4 bit | [8 mondat](../reader/audio_cache/benchmarks/voice-candidates-20261006-moss/all-8.wav) |
 | Supertonic 3, M1 | [8 mondat](../reader/audio_cache/benchmarks/voice-candidates-20261006-supertonic/samples/M1-all-8.wav) |
 | Supertonic 3, F1 | [8 mondat](../reader/audio_cache/benchmarks/voice-candidates-20261006-supertonic/samples/F1-all-8.wav) |
@@ -47,6 +48,11 @@ nyolc beépített hangjáról egy-egy rövid, első mondatos előnézet készül
 - Higgs: az alkalmazás jelenlegi hibrid MLX-útvonala, meglévő magyar narrátori
   referenciával, 123-as generálási seed. A nyolc hang készítése a betöltés
   után kb. **21,5 s** volt; az első modellbetöltés kb. 6,2 s.
+- Higgs referencia nélkül: ugyanaz a helyi modell és magyar normalizált
+  próbaszöveg, 123-as seed, de nincs referenciahang vagy referenciamondat.
+  A nyolc mondat egyenként, sorban **42,2 s** alatt készült; a modellbetöltés
+  kb. 4,4 s volt. Ez nem azonos sebességi útvonal a fenti hibrid futással,
+  ezért az idők nem vethetők össze a hangkarakter hatásaként.
 - MOSS: `mlx-community/MOSS-TTS-Local-Transformer-v1.5-4bit` és
   `mlx-community/MOSS-Audio-Tokenizer-v2-bf16`, `language="Hungarian"`, ugyanaz
   a helyi narrátori referencia, 123-as seed. A hét, már letöltött modellel
@@ -79,6 +85,23 @@ generálási prompt `Language` mezőjébe. Nem látszik egyszerűen elhagyott
 nyelvi beállítás; a jelenlegi eredmény ugyanakkor csak a fenti kvantált
 Local-változatra és erre a referenciahangra vonatkozik, nem bizonyítja, hogy
 a MOSS minden változata alkalmatlan magyarra.
+
+## Higgs gyári hangok pontosítása
+
+A helyi Higgs/MLX változat **nem kínál választható, beépített hanglistát**.
+A helyi `generate()` függvény elfogad ugyan `voice` paramétert, de nem
+használja; a Voice Studio mentett hangjai pedig referenciahangot tartalmaznak.
+Ezért a fenti új próba a valóban **referencia nélküli, alapértelmezett
+modellhang**, nem több gyári hang összehasonlítása. A nyolc külön mondat
+`01.wav`–`08.wav` néven található a próba mappájában. A kimenet gépen maradó,
+Git által figyelmen kívül hagyott `audio_cache` alatt van.
+
+Az új minták újrafuttatásához az alkalmazás leállítása után:
+
+```bash
+reader/.mlx_runtime/bin/python reader/scripts/audition_higgs_unconditioned.py \
+  --output reader/audio_cache/benchmarks/egy-uj-kimeneti-mappa --confirm-idle
+```
 
 Források: [Supertonic dokumentáció](https://github.com/supertone-oss-archive/supertonic-py/blob/main/docs/index.md),
 [MOSS-TTS MLX használat](https://github.com/Blaizzy/mlx-audio/blob/main/mlx_audio/tts/models/moss_tts/README.md),
