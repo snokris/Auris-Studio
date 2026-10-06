@@ -80,14 +80,7 @@
     </div>
     <div class="voice-library-group" id="saved-voices">
       <h2>Saved voices</h2>
-      <div class="preview-text-section">
-        <label for="saved-voice-preview-text">Text to read in saved voice previews</label>
-        <textarea id="saved-voice-preview-text" class="reference-text" rows="3" maxlength="1000" required>{{ synthetic_sample_text }}</textarea>
-        <div class="reference-actions">
-          <button id="reset-saved-voice-preview-text" class="btn btn-sm btn-ghost" type="button">Reset to default</button>
-        </div>
-      </div>
-      <p class="studio-note">Open a saved voice below to preview, edit, export or delete it. In Voice Studio you can select it for a book.</p>
+      <p class="studio-note">Open a saved voice below to enter its preview text, listen, edit, export or delete it. In Voice Studio you can select it for a book.</p>
       <details id="voice-filters-panel"><summary>Filter saved voices</summary>
         <div class="voice-tag-grid" id="voice-filters">
           <label>Gender<select id="voice-filter-gender" class="select-input"><option value="">All</option><option value="female">Female</option><option value="male">Male</option></select></label>

@@ -182,6 +182,21 @@ function renderVoice(voice) {
     transcript.title = 'This is the exact text spoken in the saved sample. Replace the candidate to change it.';
   }
   transcriptLabel.appendChild(transcript);
+  const previewTextSection = document.createElement('div');
+  previewTextSection.className = 'preview-text-section';
+  const previewTextLabel = document.createElement('label');
+  previewTextLabel.textContent = 'Text to read in preview';
+  const previewText = document.createElement('textarea');
+  previewText.className = 'reference-text';
+  previewText.rows = 3;
+  previewText.maxLength = 1000;
+  previewText.value = window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
+  previewTextLabel.appendChild(previewText);
+  const resetPreviewText = voiceButton('Reset to default', () => {
+    previewText.value = window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
+    if (activeVoicePreviewButton === previewButton) stopVoicePreview();
+  });
+  previewTextSection.append(previewTextLabel, resetPreviewText);
   const tags = document.createElement('div');
   tags.className = 'voice-tag-grid';
   const tagInputs = {};
@@ -214,7 +229,7 @@ function renderVoice(voice) {
       voiceMessage(`Generating preview: ${voice.name}…`);
       const result = await voiceResponse(await fetch(`/api/voices/${voice.id}/preview`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({text: getSavedVoicePreviewText()}),
+        body: JSON.stringify({text: getPreviewText(previewText)}),
       }));
       await playVoiceUrl(result.audio_url, previewButton);
       voiceMessage(`Playing: ${voice.name}`);
@@ -222,6 +237,9 @@ function renderVoice(voice) {
       setVoicePreviewState(previewButton, 'idle');
       voiceMessage(error.message, true);
     }
+  });
+  previewText.addEventListener('input', () => {
+    if (activeVoicePreviewButton === previewButton) stopVoicePreview();
   });
   actions.appendChild(previewButton);
   actions.appendChild(voiceButton('Save edits', async () => {
@@ -280,14 +298,13 @@ function renderVoice(voice) {
       await loadVoiceLibrary();
     } catch (error) { voiceMessage(error.message, true); }
   }));
-  editor.append(nameLabel, transcriptLabel, tags, actions);
+  editor.append(nameLabel, transcriptLabel, tags, previewTextSection, actions);
   card.append(summary, editor);
   return card;
 }
 
 const voicePreviewText = document.getElementById('synthetic-sample-text');
 const referencePreviewText = document.getElementById('reference-sample-text');
-const savedVoicePreviewText = document.getElementById('saved-voice-preview-text');
 const candidatePreviewButton = document.getElementById('generate-synthetic-voice');
 const newCandidateButton = document.getElementById('new-synthetic-candidate');
 const referencePreviewButton = document.getElementById('preview-reference-voice');
@@ -300,7 +317,6 @@ function getPreviewText(field) {
 
 function getVoicePreviewText() { return getPreviewText(voicePreviewText); }
 function getReferencePreviewText() { return getPreviewText(referencePreviewText); }
-function getSavedVoicePreviewText() { return getPreviewText(savedVoicePreviewText); }
 
 function clearSyntheticCandidate() {
   syntheticCandidateId = null;
@@ -312,7 +328,6 @@ function clearSyntheticCandidate() {
 voicePreviewText.addEventListener('input', clearSyntheticCandidate);
 voicePreviewText.addEventListener('blur', getVoicePreviewText);
 referencePreviewText.addEventListener('blur', getReferencePreviewText);
-savedVoicePreviewText.addEventListener('blur', getSavedVoicePreviewText);
 referencePreviewText.addEventListener('input', () => {
   if (activeVoicePreviewButton === referencePreviewButton) stopVoicePreview();
 });
@@ -322,10 +337,6 @@ document.getElementById('reference-voice-text').addEventListener('input', () => 
 document.getElementById('reference-voice-file').addEventListener('change', () => {
   if (activeVoicePreviewButton === referencePreviewButton) stopVoicePreview();
 });
-savedVoicePreviewText.addEventListener('input', () => {
-  if (activeVoicePreviewButton && activeVoicePreviewButton !== candidatePreviewButton &&
-      activeVoicePreviewButton !== referencePreviewButton) stopVoicePreview();
-});
 document.getElementById('reset-voice-preview-text').addEventListener('click', () => {
   voicePreviewText.value = window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
   clearSyntheticCandidate();
@@ -333,11 +344,6 @@ document.getElementById('reset-voice-preview-text').addEventListener('click', ()
 document.getElementById('reset-reference-preview-text').addEventListener('click', () => {
   referencePreviewText.value = window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
   if (activeVoicePreviewButton === referencePreviewButton) stopVoicePreview();
-});
-document.getElementById('reset-saved-voice-preview-text').addEventListener('click', () => {
-  savedVoicePreviewText.value = window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
-  if (activeVoicePreviewButton && activeVoicePreviewButton !== candidatePreviewButton &&
-      activeVoicePreviewButton !== referencePreviewButton) stopVoicePreview();
 });
 
 referencePreviewButton.addEventListener('click', async () => {

@@ -62,7 +62,11 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertIn(b'id="reference-voice-list"', settings)
         self.assertIn(b'id="reference-sample-text"', settings)
         self.assertIn(b'id="preview-reference-voice"', settings)
-        self.assertIn(b'id="saved-voice-preview-text"', settings)
+        self.assertNotIn(b'id="saved-voice-preview-text"', settings)
+        script_path = os.path.join(os.path.dirname(app_module.__file__),
+                                   'static', 'js', 'voice_library.js')
+        with open(script_path, 'rb') as script:
+            self.assertIn(b'getPreviewText(previewText)', script.read())
         self.assertIn(b'id="reset-voice-preview-text"', settings)
         self.assertIn(b'id="new-synthetic-candidate"', settings)
         self.assertNotIn(b'id="play-synthetic-candidate"', settings)
