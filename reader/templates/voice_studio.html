@@ -13,14 +13,24 @@
         <div class="char-avatar narrator-avatar">N</div>
         <div class="char-details">
           <span class="char-name">Narrator voice</span>
-          <p class="studio-note">Choose a voice saved in Settings. The same voice is used for preview, reading, and export.</p>
+          <p class="studio-note">Choose a voice saved in Settings, preview it with your own text, then save it for this book.</p>
           <div class="reference-actions">
             <select id="book-narrator-voice" class="vc-select" aria-label="Narrator voice"></select>
+          </div>
+          <div class="preview-text-section">
+            <label for="narrator-preview-text">Preview text</label>
+            <textarea id="narrator-preview-text" class="reference-text" rows="3" maxlength="1000" required>{{ book.narrator_preview_text }}</textarea>
+            <div class="reference-actions">
+              <button id="reset-narrator-preview-text" class="btn btn-sm btn-ghost" type="button">Reset to default</button>
+            </div>
+            <div class="studio-note">Preview reads this text. Save keeps it for this book.</div>
+          </div>
+          <div class="char-card-footer">
             <button id="book-voice-preview" class="btn btn-sm btn-ghost preview-btn" type="button" aria-busy="false" aria-pressed="false">
               <span class="preview-spinner" aria-hidden="true"></span>
               <span class="preview-label" aria-live="polite">&#9654; Preview</span>
             </button>
-            <button id="book-voice-save" class="btn btn-sm btn-primary" type="button">Save for this book</button>
+            <button id="book-voice-save" class="btn btn-sm btn-primary" type="button">Save</button>
           </div>
           <div class="studio-note"><a href="/settings#voice-library">Create or edit voices in Settings</a></div>
           <div id="book-voice-status" class="studio-note" role="status" aria-live="polite"></div>
@@ -32,6 +42,6 @@
 <audio id="preview-audio" style="display:none"></audio>
 {% endblock %}
 {% block scripts %}
-<script>window.BOOK_ID = {{ book.id }}; window.BOOK_VOICE_ID = {{ book.narrator_voice_id|tojson }};</script>
+<script>window.BOOK_ID = {{ book.id }}; window.BOOK_VOICE_ID = {{ book.narrator_voice_id|tojson }}; window.DEFAULT_NARRATOR_PREVIEW_TEXT = {{ default_narrator_preview_text|tojson }};</script>
 <script src="/static/js/book_voice.js"></script>
 {% endblock %}

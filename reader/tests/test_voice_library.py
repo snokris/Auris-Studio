@@ -60,6 +60,10 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertLess(settings.index(b'id="voice-library"'), settings.index(b'Higgs TTS 3'))
         self.assertIn(b'id="synthetic-voice-list"', settings)
         self.assertIn(b'id="reference-voice-list"', settings)
+        self.assertIn(b'id="reset-voice-preview-text"', settings)
+        self.assertIn(b'id="new-synthetic-candidate"', settings)
+        self.assertNotIn(b'id="play-synthetic-candidate"', settings)
+        self.assertNotIn(b'id="stop-voice-audio"', settings)
         self.assertNotIn(b'id="voice-new-tags"', settings)
         self.assertIn(b'id="synthetic-voice-tags"', settings)
         self.assertIn(b'id="reference-voice-tags"', settings)
@@ -68,6 +72,7 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertIn(b'id="book-narrator-voice"', book)
         self.assertNotIn(b'id="narrator-gender"', book)
         self.assertNotIn(b'id="narrator-ref-file"', book)
+        self.assertIn(b'id="narrator-preview-text"', book)
 
     def test_reference_voice_can_be_selected_edited_and_deleted(self):
         result = self.client.post('/api/voices/reference', data={
@@ -114,6 +119,29 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertIsNone(book['narrator_voice_id'])
         self.assertFalse(os.path.exists(voice['ref_audio_path']))
         self.assertEqual(self.client.post('/api/books/1/chapters/1/generate').status_code, 409)
+
+    def test_book_preview_and_save_use_the_edited_preview_text(self):
+        created = self.client.post('/api/voices/reference', data={
+            'name': 'Próbahang', 'ref_text': 'Ezt mondtam.',
+            'file': (io.BytesIO(wav_bytes()), 'sample.wav'),
+        }, content_type='multipart/form-data').get_json()
+        voice_id = created['id']
+        with patch.object(app_module.tts, 'status', return_value={'state': 'ready'}), patch.object(
+            app_module.tts, 'generate_preview', return_value={'cache_key': 'sample'}
+        ) as generate:
+            response = self.client.post('/api/books/1/narrator-voice/preview', json={
+                'voice_id': voice_id, 'preview_text': 'Vajon működik?'
+            })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(generate.call_args.kwargs['sample_text'], 'Vajon működik?')
+        saved = self.client.put('/api/books/1/narrator-voice', json={
+            'voice_id': voice_id, 'preview_text': 'Vajon működik?'
+        })
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.get_json()['preview_text'], 'Vajon működik?')
+        with database.get_conn() as conn:
+            book = conn.execute('SELECT narrator_preview_text FROM books WHERE id=1').fetchone()
+        self.assertEqual(book['narrator_preview_text'], 'Vajon működik?')
 
     def test_synthetic_candidate_becomes_a_saved_reference(self):
         cache_path = os.path.join(self.tmp.name, 'candidate.wav')

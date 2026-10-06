@@ -2,7 +2,19 @@ const bookVoiceSelect = document.getElementById('book-narrator-voice');
 const bookVoiceStatus = document.getElementById('book-voice-status');
 const bookPreviewButton = document.getElementById('book-voice-preview');
 const bookPreviewAudio = document.getElementById('preview-audio');
+const bookPreviewText = document.getElementById('narrator-preview-text');
 let bookPreviewState = 'idle';
+
+function getBookPreviewText() {
+  const text = bookPreviewText.value.trim() || window.DEFAULT_NARRATOR_PREVIEW_TEXT;
+  bookPreviewText.value = text;
+  return text;
+}
+
+document.getElementById('reset-narrator-preview-text').addEventListener('click', () => {
+  bookPreviewText.value = window.DEFAULT_NARRATOR_PREVIEW_TEXT;
+});
+bookPreviewText.addEventListener('blur', getBookPreviewText);
 
 function setBookVoiceStatus(message) {
   bookVoiceStatus.textContent = message;
@@ -49,6 +61,9 @@ async function loadBookVoices() {
 }
 
 bookVoiceSelect.addEventListener('change', () => {
+  bookPreviewAudio.pause();
+  bookPreviewAudio.currentTime = 0;
+  setBookPreviewState('idle');
   bookPreviewButton.disabled = !bookVoiceSelect.value;
   document.getElementById('book-voice-save').disabled = !bookVoiceSelect.value;
   setBookVoiceStatus(bookVoiceSelect.value ? 'Preview the voice, then save it for this book.' : 'Choose a saved voice.');
@@ -59,7 +74,7 @@ document.getElementById('book-voice-save').addEventListener('click', async () =>
   if (!voiceId) return;
   const response = await fetch(`/api/books/${window.BOOK_ID}/narrator-voice`, {
     method: 'PUT', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({voice_id: voiceId}),
+    body: JSON.stringify({voice_id: voiceId, preview_text: getBookPreviewText()}),
   });
   const result = await response.json();
   if (!response.ok) {
@@ -67,7 +82,7 @@ document.getElementById('book-voice-save').addEventListener('click', async () =>
     return;
   }
   window.BOOK_VOICE_ID = voiceId;
-  setBookVoiceStatus(`Saved: ${result.name}. Existing book audio will regenerate with this voice.`);
+  setBookVoiceStatus(`Saved: ${result.name}. Preview text is saved for this book.`);
 });
 
 bookPreviewButton.addEventListener('click', async () => {
@@ -82,7 +97,7 @@ bookPreviewButton.addEventListener('click', async () => {
   try {
     const response = await fetch(`/api/books/${window.BOOK_ID}/narrator-voice/preview`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({voice_id: Number(bookVoiceSelect.value)}),
+      body: JSON.stringify({voice_id: Number(bookVoiceSelect.value), preview_text: getBookPreviewText()}),
     });
     const result = await response.json();
     if (!response.ok || !result.audio_url) throw new Error(result.error || 'Preview failed.');

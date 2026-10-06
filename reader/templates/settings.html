@@ -6,27 +6,23 @@
 
   <section class="settings-section" id="voice-library">
     <div class="settings-section-title">Narrator voice library</div>
-    <p class="section-desc">Create voices here, then choose one for each book in Voice Studio. Synthetic voices are saved as a generated WAV plus its exact transcript, so the selected voice stays consistent across chapters.</p>
-    <p class="studio-note">The four tags describe a voice <em>after</em> listening; Higgs does not generate a guaranteed age, gender, pitch, or accent on command. Add tags when saving a voice, then use the filters below to find it later.</p>
-    <div class="studio-note">Filter saved voices</div>
-    <div class="voice-tag-grid" id="voice-filters">
-      <label>Gender<select id="voice-filter-gender" class="select-input"><option value="">All</option><option value="female">Female</option><option value="male">Male</option></select></label>
-      <label>Age<select id="voice-filter-age" class="select-input"><option value="">All</option><option value="child">Child</option><option value="teenager">Teenager</option><option value="young adult">Young adult</option><option value="middle-aged">Middle-aged</option><option value="elderly">Elderly</option></select></label>
-      <label>Pitch<select id="voice-filter-pitch" class="select-input"><option value="">All</option><option value="very low pitch">Very low pitch</option><option value="low pitch">Low pitch</option><option value="moderate pitch">Moderate pitch</option><option value="high pitch">High pitch</option><option value="very high pitch">Very high pitch</option></select></label>
-      <label>Accent<select id="voice-filter-accent" class="select-input"><option value="">All</option><option value="hungarian">Hungarian</option><option value="other">Other</option></select></label>
+    <p class="section-desc">1. Create or upload a voice. 2. Preview and save it under a name. 3. Choose the saved voice for a book in Voice Studio.</p>
+    <div class="preview-text-section">
+      <label for="synthetic-sample-text">Preview text</label>
+      <textarea id="synthetic-sample-text" class="reference-text" rows="3" maxlength="300" required>{{ synthetic_sample_text }}</textarea>
+      <div class="reference-actions">
+        <button id="reset-voice-preview-text" class="btn btn-sm btn-ghost" type="button">Reset to default</button>
+      </div>
+      <p class="studio-note">Synthetic candidates speak this text. Saved voice previews use it too.</p>
     </div>
     <div class="voice-library-group">
-      <h2>Synthetic voices</h2>
-      <div class="setting-row">
-        <label for="synthetic-sample-text">Hungarian sample text</label>
-        <textarea id="synthetic-sample-text" class="text-input" rows="3" maxlength="300">{{ synthetic_sample_text }}</textarea>
-      </div>
+      <h2>Create a synthetic voice</h2>
+      <p class="studio-note">Preview generates a voice from the text above. Listen, then try another variation or save the one you like.</p>
       <div class="reference-actions">
-        <button id="generate-synthetic-voice" class="btn btn-sm btn-ghost preview-btn" type="button">
-          <span class="preview-spinner" aria-hidden="true"></span><span class="preview-label">Generate candidate</span>
+        <button id="generate-synthetic-voice" class="btn btn-sm btn-ghost preview-btn" type="button" aria-busy="false" aria-pressed="false">
+          <span class="preview-spinner" aria-hidden="true"></span><span class="preview-label">&#9654; Preview</span>
         </button>
-        <button id="play-synthetic-candidate" class="btn btn-sm btn-ghost" type="button" disabled>▶ Play candidate</button>
-        <button id="stop-voice-audio" class="btn btn-sm btn-ghost" type="button" disabled>■ Stop</button>
+        <button id="new-synthetic-candidate" class="btn btn-sm btn-ghost" type="button" disabled>Try another variation</button>
       </div>
       <div class="setting-row">
         <label for="synthetic-voice-name">Voice name</label>
@@ -42,11 +38,10 @@
       <div class="reference-actions">
         <button id="save-synthetic-voice" class="btn btn-sm btn-primary" type="button" disabled>Save candidate</button>
       </div>
-      <p class="studio-note">Generate a few candidates, listen, then save the one you like. The selectors from the old book card did not control Higgs; this library stores the actual sound instead.</p>
-      <div id="synthetic-voice-list" class="voice-library-list"></div>
+      <p class="studio-note">These tags describe the voice you heard; they do not control what Higgs generates. The saved WAV and transcript keep the chosen voice consistent.</p>
     </div>
     <div class="voice-library-group">
-      <h2>Reference voices</h2>
+      <h2>Add a reference voice</h2>
       <div class="setting-row">
         <label for="reference-voice-name">Voice name</label>
         <input id="reference-voice-name" class="text-input" type="text" maxlength="80" placeholder="e.g. Calm Hungarian narrator">
@@ -67,6 +62,21 @@
         <button id="save-reference-voice" class="btn btn-sm btn-primary" type="button">Save reference voice</button>
       </div>
       <p class="studio-note">Use a clean 3–10 second single-speaker WAV in Hungarian with its exact transcript. Only use a recording with the speaker's consent.</p>
+    </div>
+    <div class="voice-library-group" id="saved-voices">
+      <h2>Saved voices</h2>
+      <p class="studio-note">Preview a saved voice with the text above. Edit its details here, or select it for a book in Voice Studio.</p>
+      <details id="voice-filters-panel"><summary>Filter saved voices</summary>
+        <div class="voice-tag-grid" id="voice-filters">
+          <label>Gender<select id="voice-filter-gender" class="select-input"><option value="">All</option><option value="female">Female</option><option value="male">Male</option></select></label>
+          <label>Age<select id="voice-filter-age" class="select-input"><option value="">All</option><option value="child">Child</option><option value="teenager">Teenager</option><option value="young adult">Young adult</option><option value="middle-aged">Middle-aged</option><option value="elderly">Elderly</option></select></label>
+          <label>Pitch<select id="voice-filter-pitch" class="select-input"><option value="">All</option><option value="very low pitch">Very low pitch</option><option value="low pitch">Low pitch</option><option value="moderate pitch">Moderate pitch</option><option value="high pitch">High pitch</option><option value="very high pitch">Very high pitch</option></select></label>
+          <label>Accent<select id="voice-filter-accent" class="select-input"><option value="">All</option><option value="hungarian">Hungarian</option><option value="other">Other</option></select></label>
+        </div>
+      </details>
+      <h3>Synthetic</h3>
+      <div id="synthetic-voice-list" class="voice-library-list"></div>
+      <h3>Reference</h3>
       <div id="reference-voice-list" class="voice-library-list"></div>
     </div>
     <div class="reference-actions">
@@ -77,7 +87,7 @@
       </select>
       <button id="voice-import-button" class="btn btn-sm btn-ghost" type="button">Import .aurisvoice</button>
     </div>
-    <div id="voice-library-status" class="status-hint" role="status" aria-live="polite"></div>
+    <div id="voice-library-status" class="status-hint voice-library-toast" role="status" aria-live="polite"></div>
   </section>
 
   <!-- Higgs TTS -->

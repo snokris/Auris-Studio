@@ -47,7 +47,8 @@ class NarratorPreviewTextTest(unittest.TestCase):
             page = self.client.get("/voice-studio/1")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b'id="book-narrator-voice"', page.data)
-        self.assertNotIn(b'id="narrator-preview-text"', page.data)
+        self.assertIn(b'id="narrator-preview-text"', page.data)
+        self.assertIn(b'id="reset-narrator-preview-text"', page.data)
         self.assertIn(b'class="preview-spinner"', page.data)
         self.assertIn(b'aria-busy="false"', page.data)
         self.assertIn(b'aria-pressed="false"', page.data)
@@ -73,7 +74,7 @@ class NarratorPreviewTextTest(unittest.TestCase):
         with patch.object(app_module.tts, "load_async"):
             page = self.client.get("/voice-studio/1")
         self.assertIn(b'id="book-narrator-voice"', page.data)
-        self.assertNotIn("Szép magyar napot!".encode(), page.data)
+        self.assertIn("Szép magyar napot!".encode(), page.data)
 
     def test_preview_uses_submitted_text_and_book_language(self):
         with patch.object(app_module.tts, "status", return_value={"state": "ready"}), patch.object(
