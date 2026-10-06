@@ -8,9 +8,9 @@ const VOICE_TAG_CHOICES = {
   accent: ['unknown', 'hungarian', 'other'],
 };
 
-function newVoiceTags() {
+function newVoiceTags(kind) {
   return Object.fromEntries(Object.keys(VOICE_TAG_CHOICES).map(key => [
-    key, document.getElementById(`voice-new-${key}`).value,
+    key, document.getElementById(`${kind}-voice-${key}`).value,
   ]));
 }
 
@@ -259,7 +259,7 @@ document.getElementById('save-synthetic-voice').addEventListener('click', async 
       body: JSON.stringify({
         name: document.getElementById('synthetic-voice-name').value.trim(),
         candidate_id: syntheticCandidateId,
-        ...newVoiceTags(),
+        ...newVoiceTags('synthetic'),
       }),
     }));
     voiceMessage(`Saved synthetic voice: ${result.name}.`);
@@ -274,7 +274,7 @@ document.getElementById('save-reference-voice').addEventListener('click', async 
   const form = new FormData();
   form.append('name', document.getElementById('reference-voice-name').value.trim());
   form.append('ref_text', document.getElementById('reference-voice-text').value.trim());
-  for (const [key, value] of Object.entries(newVoiceTags())) form.append(key, value);
+  for (const [key, value] of Object.entries(newVoiceTags('reference'))) form.append(key, value);
   if (file) form.append('file', file);
   try {
     const result = await voiceResponse(await fetch('/api/voices/reference', {
