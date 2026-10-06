@@ -1,6 +1,7 @@
 const BOOK_ID = window.BOOK_ID;
 const NARRATOR_INSTRUCT = window.NARRATOR_INSTRUCT || "";
 const DEFAULT_NARRATOR_INSTRUCT = "male, elderly, low pitch, british accent";
+const DEFAULT_NARRATOR_PREVIEW_TEXT = window.DEFAULT_NARRATOR_PREVIEW_TEXT;
 let singleNarratorMode = Boolean(window.SINGLE_NARRATOR_MODE);
 let narratorHasRefAudio = Boolean(window.NARRATOR_HAS_REF_AUDIO);
 let narratorRefAudioName = window.NARRATOR_REF_AUDIO_NAME || "Previously uploaded WAV";
@@ -96,6 +97,18 @@ function updateNarratorPreview() {
   return instruct;
 }
 
+function getNarratorPreviewText() {
+  const field = document.getElementById("narrator-preview-text");
+  const text = field?.value.trim() || DEFAULT_NARRATOR_PREVIEW_TEXT;
+  if (field) field.value = text;
+  return text;
+}
+
+function resetNarratorPreviewText() {
+  const field = document.getElementById("narrator-preview-text");
+  if (field) field.value = DEFAULT_NARRATOR_PREVIEW_TEXT;
+}
+
 function syncNarratorRefUI() {
   const status = document.getElementById("narrator-ref-status");
   const name = document.getElementById("narrator-ref-name");
@@ -140,6 +153,10 @@ function initNarratorControls() {
     el.value = value;
     el.addEventListener("change", updateNarratorPreview);
   });
+
+  document.getElementById("narrator-preview-text")?.addEventListener(
+    "blur", getNarratorPreviewText
+  );
 
   const toggle = document.getElementById("single-narrator-mode");
   if (toggle) {
@@ -400,11 +417,12 @@ async function removeNarratorRef() {
 
 async function saveNarrator() {
   const instruct = updateNarratorPreview();
+  const previewText = getNarratorPreviewText();
   const refText = document.getElementById("narrator-ref-text")?.value.trim() || "";
   const r = await fetch(`/api/books/${BOOK_ID}/narrator`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ instruct, single_narrator_mode: singleNarratorMode, ref_text: refText }),
+    body: JSON.stringify({ instruct, single_narrator_mode: singleNarratorMode, ref_text: refText, preview_text: previewText }),
   });
   const d = await r.json();
   if (d.ok) {
@@ -418,11 +436,12 @@ async function saveNarrator() {
 
 async function previewNarrator() {
   const instruct = updateNarratorPreview();
+  const previewText = getNarratorPreviewText();
   const refText = document.getElementById("narrator-ref-text")?.value.trim() || "";
   const r = await fetch(`/api/books/${BOOK_ID}/characters/narrator/preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ instruct, ref_text: refText }),
+    body: JSON.stringify({ instruct, ref_text: refText, preview_text: previewText }),
   });
   const d = await r.json();
   if (d.error) {
