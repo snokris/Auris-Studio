@@ -41,6 +41,7 @@ def init_db():
             narrator_ref_audio_path TEXT,
             narrator_ref_audio_name TEXT,
             narrator_ref_text TEXT,
+            narrator_preview_text TEXT,
             added_at    TEXT DEFAULT (datetime('now')),
             last_read   TEXT,
             total_chapters INTEGER DEFAULT 0,
@@ -178,6 +179,8 @@ def init_db():
             conn.execute("ALTER TABLE books ADD COLUMN narrator_ref_audio_name TEXT")
         if "narrator_ref_text" not in cols:
             conn.execute("ALTER TABLE books ADD COLUMN narrator_ref_text TEXT")
+        if "narrator_preview_text" not in cols:
+            conn.execute("ALTER TABLE books ADD COLUMN narrator_preview_text TEXT")
         if "character_analysis_status" not in cols:
             conn.execute(
                 "ALTER TABLE books ADD COLUMN character_analysis_status TEXT DEFAULT 'pending'"

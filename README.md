@@ -49,7 +49,7 @@ helyi snapshot is választható a Settingsben. A Backend maradhat **Auto**
 
 1. **Library** — EPUB/PDF/TXT importálása; a magyar nyelvet és a fejezethatárokat magától felismeri, a felismert fejezetek pedig import után szerkeszthetők.
 2. **Reader** — lejátszás bármely mondattól; a fejezet hangja előre is legenerálható.
-3. **Voice Studio** — narrátorhang beállítása leírással vagy klónozás referencia-WAV-ból (3–10 másodperces, tiszta, egybeszélős felvétel + pontos átirat); hangpresetek mentése, alkalmazása, valamint exportja és importja egyetlen `.aurisvoice` fájlként.
+3. **Voice Studio** — a narrátori előnézet felolvasott szövege könyvenként szerkeszthető és az eredeti angol próbára visszaállítható; referencia-WAV-ból (3–10 másodperces, tiszta, egybeszélős felvétel + pontos átirat) hang klónozható, a hangpresetek pedig menthetők, alkalmazhatók, exportálhatók és importálhatók egyetlen `.aurisvoice` fájlként.
 4. **Export** — a felső sávból nyíló panelen (`E` billentyű) fejezetek MP3-ba felirattal, `all`, `2-6` vagy `1,3,7-10` formában.
 
 ## Miben más az Auris Studio?

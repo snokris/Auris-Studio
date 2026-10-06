@@ -1025,10 +1025,10 @@ code {
 }
 .preview-btn { font-size: 0.76rem; }
 
-.clone-section {
+.clone-section, .preview-text-section {
   margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
 }
-.clone-section > label {
+.clone-section > label, .preview-text-section > label {
   font-size: 0.78rem; color: var(--text2); margin-bottom: 6px; display: block;
 }
 .reference-text {

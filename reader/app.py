@@ -120,10 +120,11 @@ _interactive_tts_batcher = InteractiveTTSBatcher(
 )
 
 
-VOICE_PREVIEW_TEXT = (
+DEFAULT_NARRATOR_PREVIEW_TEXT = (
     'Hello. This is a voice preview sample. The afternoon is calm, the room is quiet, '
     'and every word should sound clear, steady, and natural.'
 )
+MAX_NARRATOR_PREVIEW_TEXT_LENGTH = 1000
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -161,6 +162,11 @@ def _book_narrator_instruct(book: dict | None) -> str:
     if not book:
         return _default_narrator_instruct()
     return book.get('narrator_instruct') or _default_narrator_instruct()
+
+
+def _book_narrator_preview_text(book: dict | None) -> str:
+    text = book.get('narrator_preview_text') if book else None
+    return text.strip() if isinstance(text, str) and text.strip() else DEFAULT_NARRATOR_PREVIEW_TEXT
 
 
 def _book_single_narrator_mode(book: dict | None) -> bool:
@@ -364,10 +370,15 @@ def voice_studio_page(book_id):
         return 'Book not found', 404
     book_data = dict(book)
     book_data['narrator_instruct'] = _book_narrator_instruct(book_data)
+    book_data['narrator_preview_text'] = _book_narrator_preview_text(book_data)
     book_data['single_narrator_mode'] = _book_single_narrator_mode(book_data)
     if not _character_analysis_is_active():
         tts.load_async()
-    return render_template('voice_studio.html', book=book_data)
+    return render_template(
+        'voice_studio.html',
+        book=book_data,
+        default_narrator_preview_text=DEFAULT_NARRATOR_PREVIEW_TEXT,
+    )
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -931,6 +942,7 @@ def get_narrator(book_id):
     book_data = dict(book)
     return jsonify({
         'instruct': _book_narrator_instruct(book_data),
+        'preview_text': _book_narrator_preview_text(book_data),
         'single_narrator_mode': _book_single_narrator_mode(book_data),
         'ref_audio_name': book_data.get('narrator_ref_audio_name'),
         'ref_text': book_data.get('narrator_ref_text') or '',
@@ -953,6 +965,13 @@ def update_narrator(book_id):
     )
     if not instruct:
         return jsonify({'error': 'Narrator instruct is required'}), 400
+
+    raw_preview_text = body.get('preview_text', _book_narrator_preview_text(book_data))
+    if not isinstance(raw_preview_text, str):
+        return jsonify({'error': 'Preview text must be a string'}), 400
+    preview_text = raw_preview_text.strip() or DEFAULT_NARRATOR_PREVIEW_TEXT
+    if len(preview_text) > MAX_NARRATOR_PREVIEW_TEXT_LENGTH:
+        return jsonify({'error': 'Preview text is too long (max 1000 characters)'}), 400
 
     raw_mode = body.get('single_narrator_mode', _book_single_narrator_mode(book_data))
     if isinstance(raw_mode, str):
@@ -979,8 +998,8 @@ def update_narrator(book_id):
             )
         conn.execute(
             'UPDATE books SET narrator_instruct=?, single_narrator_mode=?, '
-            'narrator_ref_text=? WHERE id=?',
-            (instruct, int(single_narrator_mode), ref_text, book_id)
+            'narrator_ref_text=?, narrator_preview_text=? WHERE id=?',
+            (instruct, int(single_narrator_mode), ref_text, preview_text, book_id)
         )
 
     if narrator_changed or mode_changed or ref_text_changed:
@@ -989,6 +1008,7 @@ def update_narrator(book_id):
     return jsonify({
         'ok': True,
         'instruct': instruct,
+        'preview_text': preview_text,
         'single_narrator_mode': single_narrator_mode,
         'ref_text': ref_text,
         'segments_cleared': narrator_changed or mode_changed or ref_text_changed,
@@ -1099,16 +1119,24 @@ def preview_narrator(book_id):
     if status['state'] != 'ready':
         return jsonify({'error': 'Model not ready', 'status': status}), 503
 
-    instruct = (body.get('instruct') or _book_narrator_instruct(dict(book))).strip()
+    book_data = dict(book)
+    instruct = (body.get('instruct') or _book_narrator_instruct(book_data)).strip()
+    raw_preview_text = body.get('preview_text', _book_narrator_preview_text(book_data))
+    if not isinstance(raw_preview_text, str):
+        return jsonify({'error': 'Preview text must be a string'}), 400
+    preview_text = raw_preview_text.strip() or DEFAULT_NARRATOR_PREVIEW_TEXT
+    if len(preview_text) > MAX_NARRATOR_PREVIEW_TEXT_LENGTH:
+        return jsonify({'error': 'Preview text is too long (max 1000 characters)'}), 400
     narrator_ref, saved_ref_text = _book_narrator_reference(book_id)
     requested_ref_text = body.get('ref_text', saved_ref_text)
     narrator_ref_text = requested_ref_text.strip() if narrator_ref and isinstance(requested_ref_text, str) and requested_ref_text.strip() else None
     try:
         result = tts.generate_preview(
             instruct=instruct,
-            sample_text=VOICE_PREVIEW_TEXT,
+            sample_text=preview_text,
             ref_audio=narrator_ref,
             ref_text=narrator_ref_text,
+            language=book_data.get('language'),
         )
         return jsonify({'audio_url': f'/api/audio/{result["cache_key"]}'})
     except Exception as e:

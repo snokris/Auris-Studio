@@ -72,6 +72,14 @@
               <option value="japanese accent">Japanese</option>
             </select>
           </div>
+          <div class="preview-text-section">
+            <label for="narrator-preview-text">Preview text</label>
+            <textarea id="narrator-preview-text" class="reference-text" rows="3" maxlength="1000" required>{{ book.narrator_preview_text }}</textarea>
+            <div class="reference-actions">
+              <button class="btn btn-sm btn-ghost" type="button" onclick="resetNarratorPreviewText()">Reset to default</button>
+            </div>
+            <div class="studio-note">Preview reads this text. Save keeps it for this book.</div>
+          </div>
           <div class="char-card-footer">
             <span class="instruct-preview" id="narrator-instruct-preview"></span>
             <button class="btn btn-sm btn-ghost preview-btn" data-char-id="narrator">&#9654; Preview</button>
@@ -160,6 +168,7 @@
 {% block scripts %}
 <script>window.BOOK_ID = {{ book.id }};</script>
 <script>window.NARRATOR_INSTRUCT = {{ book.narrator_instruct|tojson }};</script>
+<script>window.DEFAULT_NARRATOR_PREVIEW_TEXT = {{ default_narrator_preview_text|tojson }};</script>
 <script>window.SINGLE_NARRATOR_MODE = {{ 1 if book.single_narrator_mode else 0 }};</script>
 <script>window.NARRATOR_HAS_REF_AUDIO = {{ 1 if book.narrator_ref_audio_path else 0 }};</script>
 <script>window.NARRATOR_REF_AUDIO_NAME = {{ (book.narrator_ref_audio_name or '')|tojson }};</script>
