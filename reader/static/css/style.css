@@ -1024,6 +1024,18 @@ code {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .preview-btn { font-size: 0.76rem; }
+.preview-spinner {
+  display: none; width: 12px; height: 12px; margin-right: 5px;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; vertical-align: -2px;
+  animation: preview-spin .75s linear infinite;
+}
+.preview-btn.is-loading:disabled { opacity: .85; }
+.preview-btn.is-loading .preview-spinner { display: inline-block; }
+@keyframes preview-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .preview-spinner { animation: none; }
+}
 
 .clone-section, .preview-text-section {
   margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);

@@ -435,21 +435,41 @@ async function saveNarrator() {
 }
 
 async function previewNarrator() {
-  const instruct = updateNarratorPreview();
-  const previewText = getNarratorPreviewText();
-  const refText = document.getElementById("narrator-ref-text")?.value.trim() || "";
-  const r = await fetch(`/api/books/${BOOK_ID}/characters/narrator/preview`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ instruct, ref_text: refText, preview_text: previewText }),
-  });
-  const d = await r.json();
-  if (d.error) {
-    alert(`Preview failed: ${d.error}`);
-    return;
+  const button = document.querySelector('.preview-btn[data-char-id="narrator"]');
+  if (button?.disabled) return;
+  const label = button?.querySelector(".preview-label");
+  if (button) {
+    button.disabled = true;
+    button.classList.add("is-loading");
+    button.setAttribute("aria-busy", "true");
   }
-  previewAudio.src = `${d.audio_url}?t=${Date.now()}`;
-  await previewAudio.play();
+  if (label) label.textContent = "Generating…";
+
+  try {
+    const instruct = updateNarratorPreview();
+    const previewText = getNarratorPreviewText();
+    const refText = document.getElementById("narrator-ref-text")?.value.trim() || "";
+    const r = await fetch(`/api/books/${BOOK_ID}/characters/narrator/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instruct, ref_text: refText, preview_text: previewText }),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error || !d.audio_url) {
+      throw new Error(d.error || `Server returned ${r.status}`);
+    }
+    previewAudio.src = `${d.audio_url}?t=${Date.now()}`;
+    await previewAudio.play();
+  } catch (error) {
+    alert(`Preview failed: ${error.message || error}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.classList.remove("is-loading");
+      button.setAttribute("aria-busy", "false");
+    }
+    if (label) label.textContent = "▶ Preview";
+  }
 }
 
 // ── Saved narrator voice presets ────────────────────────────────────────────
