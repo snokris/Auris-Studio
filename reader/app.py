@@ -1076,8 +1076,18 @@ def select_book_narrator_voice(book_id):
         voice_id = int(body.get('voice_id'))
     except (TypeError, ValueError):
         return jsonify({'error': 'Choose a saved voice.'}), 400
+    preview_text = body.get('preview_text')
+    if preview_text is not None:
+        if not isinstance(preview_text, str):
+            return jsonify({'error': 'Preview text must be a string.'}), 400
+        preview_text = preview_text.strip() or DEFAULT_NARRATOR_PREVIEW_TEXT
+        if len(preview_text) > MAX_NARRATOR_PREVIEW_TEXT_LENGTH:
+            return jsonify({'error': 'Preview text is too long (max 1000 characters).'}), 400
     with get_conn() as conn:
-        book = conn.execute('SELECT narrator_voice_id FROM books WHERE id=?', (book_id,)).fetchone()
+        book = conn.execute(
+            'SELECT narrator_voice_id, narrator_preview_text FROM books WHERE id=?',
+            (book_id,),
+        ).fetchone()
         voice = conn.execute('SELECT id, name, kind, ref_audio_path FROM voices WHERE id=?', (voice_id,)).fetchone()
         if not book:
             return jsonify({'error': 'Book not found.'}), 404
@@ -1087,10 +1097,16 @@ def select_book_narrator_voice(book_id):
             conn.execute(
                 'UPDATE books SET narrator_voice_id=? WHERE id=?', (voice_id, book_id)
             )
+        if preview_text is not None:
+            conn.execute(
+                'UPDATE books SET narrator_preview_text=? WHERE id=?',
+                (preview_text, book_id),
+            )
     changed = book['narrator_voice_id'] != voice_id
     if changed:
         _clear_book_tts_segments(book_id)
     return jsonify({'ok': True, 'voice_id': voice_id, 'name': voice['name'],
+                    'preview_text': preview_text or _book_narrator_preview_text(dict(book)),
                     'segments_cleared': changed})
 
 
@@ -1111,11 +1127,12 @@ def preview_book_narrator_voice(book_id):
     if tts.status().get('state') != 'ready':
         tts.load_async()
         return jsonify({'error': 'Higgs is loading. Try again shortly.'}), 503
-    sample_text = (
-        DEFAULT_SYNTHETIC_SAMPLE_TEXT
-        if str(book['language']).lower() == 'hu'
-        else DEFAULT_NARRATOR_PREVIEW_TEXT
-    )
+    sample_text = body.get('preview_text', _book_narrator_preview_text(dict(book)))
+    if not isinstance(sample_text, str):
+        return jsonify({'error': 'Preview text must be a string.'}), 400
+    sample_text = sample_text.strip() or DEFAULT_NARRATOR_PREVIEW_TEXT
+    if len(sample_text) > MAX_NARRATOR_PREVIEW_TEXT_LENGTH:
+        return jsonify({'error': 'Preview text is too long (max 1000 characters).'}), 400
     try:
         result = tts.generate_preview(
             instruct='', sample_text=sample_text,

@@ -1,6 +1,8 @@
 const voiceLibraryStatus = document.getElementById('voice-library-status');
 const voiceLibraryAudio = new Audio();
 let syntheticCandidateId = null;
+let activeVoicePreviewButton = null;
+let voiceMessageTimer = null;
 const VOICE_TAG_CHOICES = {
   gender: ['unknown', 'female', 'male'],
   age: ['unknown', 'child', 'teenager', 'young adult', 'middle-aged', 'elderly'],
@@ -12,6 +14,12 @@ function newVoiceTags(kind) {
   return Object.fromEntries(Object.keys(VOICE_TAG_CHOICES).map(key => [
     key, document.getElementById(`${kind}-voice-${key}`).value,
   ]));
+}
+
+function resetVoiceTags(kind) {
+  for (const key of Object.keys(VOICE_TAG_CHOICES)) {
+    document.getElementById(`${kind}-voice-${key}`).value = 'unknown';
+  }
 }
 
 function applyVoiceFilters() {
@@ -38,6 +46,8 @@ for (const key of Object.keys(VOICE_TAG_CHOICES)) {
 function voiceMessage(message, error = false) {
   voiceLibraryStatus.textContent = message;
   voiceLibraryStatus.className = `status-hint ${error ? 'status-error' : 'status-ok'}`;
+  clearTimeout(voiceMessageTimer);
+  voiceMessageTimer = setTimeout(() => { voiceLibraryStatus.textContent = ''; }, 8000);
 }
 
 async function voiceResponse(response) {
@@ -57,26 +67,54 @@ async function waitForVoiceModel() {
   throw new Error('Higgs did not become ready in time.');
 }
 
-async function playVoiceUrl(url) {
+function setVoicePreviewState(button, state) {
+  button.disabled = state === 'loading';
+  button.classList.toggle('is-loading', state === 'loading');
+  button.classList.toggle('is-playing', state === 'playing');
+  button.setAttribute('aria-busy', String(state === 'loading'));
+  button.setAttribute('aria-pressed', String(state === 'playing'));
+  button.querySelector('.preview-label').textContent =
+    state === 'loading' ? 'Generating…' : state === 'playing' ? '■ Stop' : '▶ Preview';
+}
+
+function stopVoicePreview() {
   voiceLibraryAudio.pause();
+  voiceLibraryAudio.currentTime = 0;
+  if (activeVoicePreviewButton) setVoicePreviewState(activeVoicePreviewButton, 'idle');
+  activeVoicePreviewButton = null;
+}
+
+async function playVoiceUrl(url, button) {
+  stopVoicePreview();
+  activeVoicePreviewButton = button;
   voiceLibraryAudio.src = url;
-  document.getElementById('stop-voice-audio').disabled = false;
   try {
     await voiceLibraryAudio.play();
+    setVoicePreviewState(button, voiceLibraryAudio.paused || voiceLibraryAudio.ended ? 'idle' : 'playing');
   } catch (error) {
-    document.getElementById('stop-voice-audio').disabled = true;
+    setVoicePreviewState(button, 'idle');
+    activeVoicePreviewButton = null;
     throw error;
   }
 }
 
-voiceLibraryAudio.addEventListener('ended', () => {
-  document.getElementById('stop-voice-audio').disabled = true;
-});
-document.getElementById('stop-voice-audio').addEventListener('click', () => {
-  voiceLibraryAudio.pause();
-  voiceLibraryAudio.currentTime = 0;
-  document.getElementById('stop-voice-audio').disabled = true;
-});
+voiceLibraryAudio.addEventListener('ended', stopVoicePreview);
+
+function voicePreviewButton() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn btn-sm btn-ghost preview-btn';
+  button.setAttribute('aria-busy', 'false');
+  button.setAttribute('aria-pressed', 'false');
+  const spinner = document.createElement('span');
+  spinner.className = 'preview-spinner';
+  spinner.setAttribute('aria-hidden', 'true');
+  const label = document.createElement('span');
+  label.className = 'preview-label';
+  label.textContent = '▶ Preview';
+  button.append(spinner, label);
+  return button;
+}
 
 function voiceButton(label, action) {
   const button = document.createElement('button');
@@ -89,6 +127,7 @@ function voiceButton(label, action) {
 
 async function loadVoiceLibrary() {
   try {
+    stopVoicePreview();
     const voices = await voiceResponse(await fetch('/api/voices'));
     for (const kind of ['synthetic', 'reference']) {
       const container = document.getElementById(`${kind}-voice-list`);
@@ -109,14 +148,29 @@ async function loadVoiceLibrary() {
 }
 
 function renderVoice(voice) {
-  const card = document.createElement('div');
+  const card = document.createElement('details');
   card.className = 'voice-library-card';
   for (const key of Object.keys(VOICE_TAG_CHOICES)) card.dataset[key] = voice[key] || 'unknown';
+  const summary = document.createElement('summary');
+  summary.textContent = voice.name;
+  if (voice.usage_count) {
+    const used = document.createElement('span');
+    used.className = 'muted';
+    used.textContent = ` · ${voice.usage_count} book(s)`;
+    summary.appendChild(used);
+  }
+  const editor = document.createElement('div');
+  editor.className = 'voice-library-editor';
+  const nameLabel = document.createElement('label');
+  nameLabel.textContent = 'Voice name';
   const name = document.createElement('input');
   name.className = 'text-input';
   name.value = voice.name;
   name.maxLength = 80;
   name.setAttribute('aria-label', `${voice.name} name`);
+  nameLabel.appendChild(name);
+  const transcriptLabel = document.createElement('label');
+  transcriptLabel.textContent = 'Reference transcript';
   const transcript = document.createElement('textarea');
   transcript.className = 'text-input';
   transcript.rows = 2;
@@ -127,6 +181,7 @@ function renderVoice(voice) {
     transcript.readOnly = true;
     transcript.title = 'This is the exact text spoken in the saved sample. Replace the candidate to change it.';
   }
+  transcriptLabel.appendChild(transcript);
   const tags = document.createElement('div');
   tags.className = 'voice-tag-grid';
   const tagInputs = {};
@@ -146,18 +201,29 @@ function renderVoice(voice) {
   }
   const actions = document.createElement('div');
   actions.className = 'reference-actions';
-  actions.appendChild(voiceButton('▶ Preview', async () => {
+  const previewButton = voicePreviewButton();
+  previewButton.addEventListener('click', async () => {
+    if (activeVoicePreviewButton === previewButton) {
+      stopVoicePreview();
+      return;
+    }
+    stopVoicePreview();
     try {
+      setVoicePreviewState(previewButton, 'loading');
       await waitForVoiceModel();
       voiceMessage(`Generating preview: ${voice.name}…`);
       const result = await voiceResponse(await fetch(`/api/voices/${voice.id}/preview`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({text: document.getElementById('synthetic-sample-text').value.trim()}),
+        body: JSON.stringify({text: getVoicePreviewText()}),
       }));
-      await playVoiceUrl(result.audio_url);
+      await playVoiceUrl(result.audio_url, previewButton);
       voiceMessage(`Playing: ${voice.name}`);
-    } catch (error) { voiceMessage(error.message, true); }
-  }));
+    } catch (error) {
+      setVoicePreviewState(previewButton, 'idle');
+      voiceMessage(error.message, true);
+    }
+  });
+  actions.appendChild(previewButton);
   actions.appendChild(voiceButton('Save edits', async () => {
     try {
       const result = await voiceResponse(await fetch(`/api/voices/${voice.id}`, {
@@ -214,42 +280,73 @@ function renderVoice(voice) {
       await loadVoiceLibrary();
     } catch (error) { voiceMessage(error.message, true); }
   }));
-  card.append(name, transcript, tags, actions);
+  editor.append(nameLabel, transcriptLabel, tags, actions);
+  card.append(summary, editor);
   return card;
 }
 
-document.getElementById('generate-synthetic-voice').addEventListener('click', async () => {
-  const button = document.getElementById('generate-synthetic-voice');
-  button.disabled = true;
-  button.classList.add('is-loading');
+const voicePreviewText = document.getElementById('synthetic-sample-text');
+const candidatePreviewButton = document.getElementById('generate-synthetic-voice');
+const newCandidateButton = document.getElementById('new-synthetic-candidate');
+
+function getVoicePreviewText() {
+  const text = voicePreviewText.value.trim() || window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
+  voicePreviewText.value = text;
+  return text;
+}
+
+function clearSyntheticCandidate() {
   syntheticCandidateId = null;
   document.getElementById('save-synthetic-voice').disabled = true;
-  document.getElementById('play-synthetic-candidate').disabled = true;
-  try {
-    await waitForVoiceModel();
-    voiceMessage('Generating a new synthetic voice candidate…');
-    const result = await voiceResponse(await fetch('/api/voices/synthetic/candidates', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({text: document.getElementById('synthetic-sample-text').value.trim()}),
-    }));
-    syntheticCandidateId = result.candidate_id;
-    document.getElementById('play-synthetic-candidate').disabled = false;
-    document.getElementById('save-synthetic-voice').disabled = false;
-    try {
-      await playVoiceUrl(result.audio_url);
-      voiceMessage('Candidate ready. Listen, name it, then save it — or generate another.');
-    } catch (_) {
-      voiceMessage('Candidate ready. Click Play candidate to listen before saving.');
-    }
-  } catch (error) { voiceMessage(error.message, true); }
-  finally { button.disabled = false; button.classList.remove('is-loading'); }
+  newCandidateButton.disabled = true;
+  if (activeVoicePreviewButton === candidatePreviewButton) stopVoicePreview();
+}
+
+voicePreviewText.addEventListener('input', clearSyntheticCandidate);
+voicePreviewText.addEventListener('blur', getVoicePreviewText);
+document.getElementById('reset-voice-preview-text').addEventListener('click', () => {
+  voicePreviewText.value = window.DEFAULT_SYNTHETIC_SAMPLE_TEXT;
+  clearSyntheticCandidate();
 });
 
-document.getElementById('play-synthetic-candidate').addEventListener('click', async () => {
-  if (!syntheticCandidateId) return;
-  try { await playVoiceUrl(`/api/audio/${syntheticCandidateId}`); }
-  catch (error) { voiceMessage(error.message, true); }
-});
+async function previewSyntheticCandidate(forceNew = false) {
+  if (activeVoicePreviewButton === candidatePreviewButton && !forceNew) {
+    stopVoicePreview();
+    return;
+  }
+  stopVoicePreview();
+  setVoicePreviewState(candidatePreviewButton, 'loading');
+  newCandidateButton.disabled = true;
+  try {
+    await waitForVoiceModel();
+    if (!syntheticCandidateId || forceNew) {
+      clearSyntheticCandidate();
+      voiceMessage('Generating a synthetic voice…');
+      const requestedText = getVoicePreviewText();
+      const result = await voiceResponse(await fetch('/api/voices/synthetic/candidates', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: requestedText}),
+      }));
+      if (voicePreviewText.value.trim() !== requestedText) {
+        voiceMessage('Preview text changed. Preview again to create a matching voice.');
+        return;
+      }
+      syntheticCandidateId = result.candidate_id;
+      document.getElementById('save-synthetic-voice').disabled = false;
+    }
+    await playVoiceUrl(`/api/audio/${syntheticCandidateId}`, candidatePreviewButton);
+    voiceMessage('Candidate ready. Name and save it, or try another variation.');
+  } catch (error) {
+    setVoicePreviewState(candidatePreviewButton, 'idle');
+    voiceMessage(error.message, true);
+  } finally {
+    if (!syntheticCandidateId) setVoicePreviewState(candidatePreviewButton, 'idle');
+    newCandidateButton.disabled = !syntheticCandidateId;
+  }
+}
+
+candidatePreviewButton.addEventListener('click', () => previewSyntheticCandidate());
+newCandidateButton.addEventListener('click', () => previewSyntheticCandidate(true));
 
 document.getElementById('save-synthetic-voice').addEventListener('click', async () => {
   if (!syntheticCandidateId) return;
@@ -264,6 +361,7 @@ document.getElementById('save-synthetic-voice').addEventListener('click', async 
     }));
     voiceMessage(`Saved synthetic voice: ${result.name}.`);
     document.getElementById('synthetic-voice-name').value = '';
+    resetVoiceTags('synthetic');
     clearVoiceFilters();
     await loadVoiceLibrary();
   } catch (error) { voiceMessage(error.message, true); }
@@ -284,6 +382,7 @@ document.getElementById('save-reference-voice').addEventListener('click', async 
     document.getElementById('reference-voice-name').value = '';
     document.getElementById('reference-voice-text').value = '';
     document.getElementById('reference-voice-file').value = '';
+    resetVoiceTags('reference');
     clearVoiceFilters();
     await loadVoiceLibrary();
   } catch (error) { voiceMessage(error.message, true); }
