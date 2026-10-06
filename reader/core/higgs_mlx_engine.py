@@ -276,6 +276,7 @@ class HiggsMLXEngine(HiggsTTSEngine):
             language=item.get("language"),
             normalize_text=bool(normalize),
             render_variant=f"mlx-hybrid-v{MLX_HYBRID_VERSION}",
+            seed_override=item.get('seed_override'),
         )
         source, _ = self._source()
         payload = (
@@ -316,8 +317,10 @@ class HiggsMLXEngine(HiggsTTSEngine):
             self._normalize_enabled(item),
         )
 
-    def _generation_payload(self) -> dict:
+    def _generation_payload(self, seed_override: int | None = None) -> dict:
         values = self._generation_settings()
+        if seed_override is not None:
+            values['seed'] = int(seed_override)
         if int(values.get("seed", -1)) < 0:
             values["seed"] = None
         return values
@@ -441,7 +444,7 @@ class HiggsMLXEngine(HiggsTTSEngine):
                         {
                             "command": "batch",
                             "items": payload_items,
-                            "generation": self._generation_payload(),
+                            "generation": self._generation_payload(entries[0]['item'].get('seed_override')),
                         }
                     )
             finally:
@@ -473,7 +476,7 @@ class HiggsMLXEngine(HiggsTTSEngine):
                             "reference_audio": entry["question_reference"],
                             "reference_text": entry["question_reference_text"],
                             "output_path": temp_path,
-                            "generation": self._generation_payload(),
+                            "generation": self._generation_payload(item.get('seed_override')),
                         }
                     )
             finally:
@@ -497,6 +500,7 @@ class HiggsMLXEngine(HiggsTTSEngine):
         num_step: int | None = None,
         language: str | None = None,
         normalize_text: bool | None = None,
+        seed_override: int | None = None,
     ) -> dict:
         return self.generate_many(
             [
@@ -508,6 +512,7 @@ class HiggsMLXEngine(HiggsTTSEngine):
                     "speed": speed,
                     "language": language,
                     "normalize_text": normalize_text,
+                    "seed_override": seed_override,
                 }
             ],
             num_step=num_step,
@@ -576,6 +581,7 @@ class HiggsMLXEngine(HiggsTTSEngine):
                 group_key = (
                     reference_identity(item.get("ref_audio")),
                     str(item.get("ref_text") or ""),
+                    item.get('seed_override'),
                 )
                 narration_groups[group_key].append(entry)
 

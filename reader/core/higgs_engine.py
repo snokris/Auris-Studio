@@ -401,6 +401,7 @@ class HiggsTTSEngine:
         normalize_text: bool = False,
         num_step: int = 0,
         render_variant: str | None = None,
+        seed_override: int | None = None,
     ) -> str:
         controls = (
             _setting("higgs_prompt_mode", "raw"),
@@ -409,6 +410,8 @@ class HiggsTTSEngine:
             _setting("higgs_default_expressive", "none"),
         )
         generation = cls._generation_settings()
+        if seed_override is not None:
+            generation['seed'] = int(seed_override)
         payload = (
             f"higgs-v{HIGGS_CACHE_VERSION}|{text}|{instruct}|{ref_audio}|{ref_text}|{speed:.3f}|"
             f"{language or ''}|nt={int(bool(normalize_text))}|{controls}|{generation}|"
@@ -518,6 +521,7 @@ class HiggsTTSEngine:
         speed: float,
         language: str | None,
         normalize_text: bool,
+        seed_override: int | None = None,
     ) -> np.ndarray:
         if not self._ready or self._worker is None:
             self._wait_until_ready()
@@ -525,6 +529,8 @@ class HiggsTTSEngine:
             raise RuntimeError("Higgs TTS is not loaded. " + (self._error or "Load it first."))
         settings = self._generation_settings()
         seed = settings.pop("seed")
+        if seed_override is not None:
+            seed = int(seed_override)
         reference_path = self._prepared_reference(ref_audio) if ref_audio else None
         prompt = self._prompt(text, instruct, speed, language, normalize_text)
         handle, output_path = tempfile.mkstemp(suffix=".wav", prefix="auris-studio-higgs-out-")
@@ -568,6 +574,7 @@ class HiggsTTSEngine:
         num_step: int | None = None,
         language: str | None = None,
         normalize_text: bool | None = None,
+        seed_override: int | None = None,
     ) -> dict:
         if normalize_text is None:
             normalize_text = bool(_setting("normalize_text", True))
@@ -579,6 +586,7 @@ class HiggsTTSEngine:
             ref_text=ref_text,
             language=language,
             normalize_text=bool(normalize_text),
+            seed_override=seed_override,
             render_variant=(
                 f"{self._load_metadata['device']}/{self._load_metadata['dtype'].removeprefix('torch.')}"
                 if self._load_metadata.get("device") and self._load_metadata.get("dtype") else None
@@ -594,7 +602,8 @@ class HiggsTTSEngine:
                 "cache_key": key,
             }
         audio = self._synthesize(
-            text, instruct, ref_audio, ref_text, speed, language, bool(normalize_text)
+            text, instruct, ref_audio, ref_text, speed, language, bool(normalize_text),
+            seed_override=seed_override,
         )
         sample_rate = self._sample_rate
         _write_audio_atomic(path, audio, sample_rate)
@@ -626,6 +635,7 @@ class HiggsTTSEngine:
                 speed=float(item.get("speed") or 1.0),
                 language=item.get("language"),
                 normalize_text=item.get("normalize_text"),
+                seed_override=item.get("seed_override"),
             )
             results.append(result)
             if on_item is not None:
@@ -640,6 +650,7 @@ class HiggsTTSEngine:
         ref_text: str | None = None,
         language: str | None = None,
         normalize_text: bool | None = None,
+        seed_override: int | None = None,
     ) -> dict:
         return self.generate(
             sample_text,
@@ -648,4 +659,5 @@ class HiggsTTSEngine:
             ref_text=ref_text,
             language=language,
             normalize_text=normalize_text,
+            seed_override=seed_override,
         )

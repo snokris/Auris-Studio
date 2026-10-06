@@ -49,8 +49,9 @@ helyi snapshot is választható a Settingsben. A Backend maradhat **Auto**
 
 1. **Library** — EPUB/PDF/TXT importálása; a magyar nyelvet és a fejezethatárokat magától felismeri, a felismert fejezetek pedig import után szerkeszthetők.
 2. **Reader** — lejátszás bármely mondattól; a fejezet hangja előre is legenerálható.
-3. **Voice Studio** — a narrátori előnézet felolvasott szövege könyvenként szerkeszthető és az eredeti angol próbára visszaállítható; referencia-WAV-ból (3–10 másodperces, tiszta, egybeszélős felvétel + pontos átirat) hang klónozható, a hangpresetek pedig menthetők, alkalmazhatók, exportálhatók és importálhatók egyetlen `.aurisvoice` fájlként.
-4. **Export** — a felső sávból nyíló panelen (`E` billentyű) fejezetek MP3-ba felirattal, `all`, `2-6` vagy `1,3,7-10` formában.
+3. **Settings → Narrator voice library** — magyar próbamondatból több szintetikus hangjelölt generálható és a meghallgatott jelölt saját néven menthető. Referencia-WAV (3–10 másodperc, egy beszélő) és pontos átirat is menthető. A két hangtípus külön listában és külön `reader/data/voices/synthetic/`, illetve `reader/data/voices/reference/` mappában él. A négy régi jellemző (nem, korjelleg, hangfekvés, akcentus) a meghallgatott hangok szerkeszthető címkéje és a mentett listák működő szűrője; a Higgsnek nem adnak nem létező, garantált hangtervezési parancsot. A hangok átnevezhetők, átiratuk és WAV-juk/jelöltjük cserélhető, törölhetők, valamint `.aurisvoice` fájlba exportálhatók és visszatölthetők.
+4. **Könyv → Voice Studio** — a könyvhöz kizárólag a Settingsben mentett szintetikus vagy referenciahang választható. A Preview, lejátszás és export ugyanazt a rögzített hangprofilt használja; mentett hang nélkül új hang nem generálódik.
+5. **Export** — a felső sávból nyíló panelen (`E` billentyű) fejezetek MP3-ba felirattal, `all`, `2-6` vagy `1,3,7-10` formában.
 
 ## Miben más az Auris Studio?
 
@@ -60,7 +61,7 @@ A Higgs natív MLX backenden használja a Metal GPU-t. A Transformers kompatibil
 
 ### Egy narrátorhang, élethűen
 
-Az Auris Studio teljes egészében **egynarrátoros felolvasásra** van hangolva: egyetlen, minél emberibb narrátorhang olvassa a teljes könyvet — leírásból tervezve vagy referencia-WAV-ból klónozva. A többszereplős narráció (karakterfelismerés, szereplőnkénti hangok) kódja megmaradt, de ki van kapcsolva; a kapcsoló az `app.py` `MULTI_VOICE_NARRATION` konstansa, a hozzá tartozó felületblokkok kikommentelve várakoznak (keresd: `MULTI_VOICE`).
+Az Auris Studio teljes egészében **egynarrátoros felolvasásra** van hangolva: egyetlen, minél emberibb narrátorhang olvassa a teljes könyvet. Szintetikus hangot a Higgs referencia nélkül hoz létre; a kiválasztott rövid WAV és pontos szövege utána referenciahangként rögzül, így a könyv további mondataiban ugyanazt a hangkaraktert használja. Nem külön betanított modell keletkezik. A többszereplős narráció (karakterfelismerés, szereplőnkénti hangok) kódja megmaradt, de ki van kapcsolva; a kapcsoló az `app.py` `MULTI_VOICE_NARRATION` konstansa.
 
 ### Hangminőség
 
@@ -96,7 +97,7 @@ Kérhető 1–4 összefűzött MP3 is a hozzájuk illeszkedő, újraidőzített 
 
 ### Hangcache és Voice Studio
 
-A Beállítások hangcache-kártyája mutatja a cache méretét, kitakarítja az árva szegmenseket, és könyv törlésekor automatikusan söpör. A Voice Studióban a könyv referenciahangja (WAV + átirat) névvel elmenthető, bármely könyvre egy kattintással alkalmazható, és egyetlen `.aurisvoice` fájlba exportálható, illetve onnan visszatölthető — így a hang biztonsági mentése és gépek közti átvitele is egy fájl.
+A Beállítások hangcache-kártyája mutatja a cache méretét, kitakarítja az árva szegmenseket, és könyv törlésekor automatikusan söpör. A régi hangpresetek és a könyvekhez már feltöltött referenciahangok az első indításkor az új hangtárba másolódnak; az eredeti fájlok megmaradnak. Mentett hang módosításakor az azt használó könyvek szegmensei újragenerálódnak. Hang törlésekor az érintett könyveknél új narrátort kell választani.
 
 ## TTS-motor
 

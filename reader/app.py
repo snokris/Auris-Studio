@@ -6,11 +6,15 @@ import base64
 import io
 import logging
 import os
+import secrets
 import shutil
 import sqlite3
 import threading
 import time
 import uuid
+
+import numpy as np
+import soundfile as sf
 
 from flask import (
     Flask, jsonify, render_template, request,
@@ -19,7 +23,7 @@ from flask import (
 
 from core.database import init_db, get_conn
 from core.tts_batcher import InteractiveTTSBatcher
-from core.tts_common import AUDIO_CACHE_DIR, TTSExportPool
+from core.tts_common import AUDIO_CACHE_DIR, TTSExportPool, apply_text_normalization
 from core.tts_router import TTSEngineRouter
 from core import characters as char_module
 from core import llm_characters
@@ -57,6 +61,10 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # per-book uploads above, these persist independently of any book.
 VOICE_PRESET_DIR = os.path.join(os.path.dirname(__file__), 'data', 'voice_presets')
 os.makedirs(VOICE_PRESET_DIR, exist_ok=True)
+VOICE_LIBRARY_DIR = os.path.join(os.path.dirname(__file__), 'data', 'voices')
+
+_synthetic_candidates: dict[str, tuple[str, float]] = {}
+_synthetic_candidates_lock = threading.Lock()
 
 tts = TTSEngineRouter()
 
@@ -125,6 +133,11 @@ DEFAULT_NARRATOR_PREVIEW_TEXT = (
     'and every word should sound clear, steady, and natural.'
 )
 MAX_NARRATOR_PREVIEW_TEXT_LENGTH = 1000
+MAX_SYNTHETIC_SAMPLE_TEXT_LENGTH = 300
+DEFAULT_SYNTHETIC_SAMPLE_TEXT = (
+    'A reggeli fény lassan végigkúszott a szoba falán. '
+    'Odakint csendesen esett az eső.'
+)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -143,6 +156,7 @@ def _startup():
             return
         try:
             init_db()
+            _migrate_legacy_voices()
             # Old persisted prompts may contain obsolete literal expression tags.
             if app_settings.migrate_tts_expression_policy_version():
                 with get_conn() as conn:
@@ -179,11 +193,11 @@ def _book_single_narrator_mode(book: dict | None) -> bool:
     return bool(book.get('single_narrator_mode'))
 
 
-def _book_narrator_reference(book_id: int) -> tuple[str | None, str | None]:
+def _book_narrator_reference(book_id: int, *, require_selected: bool = False) -> tuple[str | None, str | None]:
     try:
         with get_conn() as conn:
             row = conn.execute(
-                'SELECT narrator_ref_audio_path, narrator_ref_text FROM books WHERE id=?',
+                'SELECT narrator_voice_id, narrator_ref_audio_path, narrator_ref_text FROM books WHERE id=?',
                 (book_id,),
             ).fetchone()
     except Exception as exc:
@@ -194,18 +208,41 @@ def _book_narrator_reference(book_id: int) -> tuple[str | None, str | None]:
         return None, None
 
     data = dict(row)
+    voice_id = data.get('narrator_voice_id')
+    if voice_id:
+        with get_conn() as conn:
+            voice = conn.execute(
+                'SELECT kind, ref_audio_path, ref_text FROM voices WHERE id=?', (voice_id,)
+            ).fetchone()
+        if not voice or not os.path.isfile(_voice_file(voice)):
+            raise ValueError('The selected narrator voice is missing. Choose another voice in Voice Studio.')
+        return os.path.abspath(_voice_file(voice)), voice['ref_text'] or None
     path = data.get('narrator_ref_audio_path')
     if not isinstance(path, str) or not path.strip():
+        if require_selected:
+            raise ValueError('Choose a saved narrator voice in Voice Studio before generating audio.')
         return None, None
 
     resolved = os.path.abspath(path)
     ref_text = data.get('narrator_ref_text')
     ref_text = ref_text.strip() if isinstance(ref_text, str) and ref_text.strip() else None
-    return (resolved, ref_text) if os.path.exists(resolved) else (None, None)
+    if os.path.exists(resolved):
+        return resolved, ref_text
+    if require_selected:
+        raise ValueError('The narrator reference WAV is missing. Choose a saved voice.')
+    return None, None
 
 
 def _book_narrator_ref_audio(book_id: int) -> str | None:
     return _book_narrator_reference(book_id)[0]
+
+
+def _voice_required_response(book_id: int):
+    try:
+        _book_narrator_reference(book_id, require_selected=True)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 409
+    return None
 
 
 def _delete_file_if_exists(path: str | None):
@@ -216,6 +253,86 @@ def _delete_file_if_exists(path: str | None):
             os.remove(path)
     except OSError as exc:
         log.warning('Unable to delete file %s: %s', path, exc)
+
+
+def _voice_directory(kind: str) -> str:
+    directory = os.path.join(VOICE_LIBRARY_DIR, kind)
+    os.makedirs(directory, exist_ok=True)
+    return directory
+
+
+def _voice_file(row) -> str:
+    """Find an app-contained voice after the project is moved to another path."""
+    stored = row['ref_audio_path']
+    if os.path.isfile(stored):
+        return stored
+    relocated = os.path.join(_voice_directory(row['kind']), os.path.basename(stored))
+    return relocated if os.path.isfile(relocated) else stored
+
+
+def _unique_voice_name(conn, kind: str, wanted: str) -> str:
+    base = wanted.strip()[:80] or 'Narrator'
+    taken = {
+        row['name'].casefold()
+        for row in conn.execute('SELECT name FROM voices WHERE kind=?', (kind,))
+    }
+    if base.casefold() not in taken:
+        return base
+    for index in range(2, 1000):
+        suffix = f' ({index})'
+        candidate = base[:80 - len(suffix)].rstrip() + suffix
+        if candidate.casefold() not in taken:
+            return candidate
+    raise ValueError('Too many voices with the same name')
+
+
+def _copy_voice_to_library(source: str, kind: str) -> str:
+    destination = os.path.join(_voice_directory(kind), f'{uuid.uuid4().hex}.wav')
+    shutil.copyfile(source, destination)
+    return destination
+
+
+def _migrate_legacy_voices() -> None:
+    """Preserve old presets and per-book references in the new voice library.
+
+    Old files are copied, never moved: existing book and export references keep
+    working even if migration is interrupted. Each row is attached only once.
+    """
+    with get_conn() as conn:
+        presets = conn.execute('SELECT * FROM voice_presets ORDER BY id').fetchall()
+        for preset in presets:
+            if conn.execute(
+                'SELECT 1 FROM voices WHERE legacy_preset_id=?', (preset['id'],)
+            ).fetchone() or not os.path.isfile(preset['ref_audio_path']):
+                continue
+            path = _copy_voice_to_library(preset['ref_audio_path'], 'reference')
+            conn.execute(
+                'INSERT INTO voices (name, kind, ref_audio_path, ref_audio_name, '
+                'ref_text, legacy_preset_id) VALUES (?, ?, ?, ?, ?, ?)',
+                (_unique_voice_name(conn, 'reference', preset['name']),
+                 'reference', path, preset['ref_audio_name'],
+                 preset['ref_text'] or '', preset['id']),
+            )
+        books = conn.execute(
+            'SELECT id, title, narrator_voice_id, narrator_ref_audio_path, '
+            'narrator_ref_audio_name, narrator_ref_text FROM books'
+        ).fetchall()
+        for book in books:
+            source = book['narrator_ref_audio_path']
+            if book['narrator_voice_id'] or not source or not os.path.isfile(source):
+                continue
+            path = _copy_voice_to_library(source, 'reference')
+            name = _unique_voice_name(conn, 'reference', book['title'] + ' — narrator')
+            cursor = conn.execute(
+                'INSERT INTO voices (name, kind, ref_audio_path, ref_audio_name, ref_text) '
+                'VALUES (?, ?, ?, ?, ?)',
+                (name, 'reference', path, book['narrator_ref_audio_name'],
+                 book['narrator_ref_text'] or ''),
+            )
+            conn.execute(
+                'UPDATE books SET narrator_voice_id=? WHERE id=?',
+                (cursor.lastrowid, book['id']),
+            )
 
 
 def _load_book(book_id: int):
@@ -239,7 +356,7 @@ def _compute_segments_for_chapter(book_id: int, chapter_id: int) -> list[dict]:
             (book_id,)
         ).fetchall()
         book = conn.execute(
-            'SELECT narrator_instruct, single_narrator_mode, character_analysis_status, '
+            'SELECT narrator_instruct, narrator_voice_id, single_narrator_mode, character_analysis_status, '
             'character_analysis_provider '
             'FROM books WHERE id=?',
             (book_id,)
@@ -266,7 +383,7 @@ def _compute_segments_for_chapter(book_id: int, chapter_id: int) -> list[dict]:
     segs = enrichment.enrich_chapter(
         ch['content'],
         char_map,
-        _book_narrator_instruct(dict(book) if book else None),
+        '' if book and book['narrator_voice_id'] else _book_narrator_instruct(dict(book) if book else None),
         single_narrator_mode=_book_single_narrator_mode(dict(book) if book else None),
         chapter_title=ch['title'],
         speaker_annotations=speaker_annotations,
@@ -946,7 +1063,68 @@ def get_narrator(book_id):
         'single_narrator_mode': _book_single_narrator_mode(book_data),
         'ref_audio_name': book_data.get('narrator_ref_audio_name'),
         'ref_text': book_data.get('narrator_ref_text') or '',
+        'voice_id': book_data.get('narrator_voice_id'),
     })
+
+
+@app.route('/api/books/<int:book_id>/narrator-voice', methods=['PUT'])
+def select_book_narrator_voice(book_id):
+    if _export_exclusive_active():
+        return jsonify({'error': 'Wait until audio generation finishes before changing the voice.'}), 409
+    body = request.get_json(silent=True) or {}
+    try:
+        voice_id = int(body.get('voice_id'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Choose a saved voice.'}), 400
+    with get_conn() as conn:
+        book = conn.execute('SELECT narrator_voice_id FROM books WHERE id=?', (book_id,)).fetchone()
+        voice = conn.execute('SELECT id, name, kind, ref_audio_path FROM voices WHERE id=?', (voice_id,)).fetchone()
+        if not book:
+            return jsonify({'error': 'Book not found.'}), 404
+        if not voice or not os.path.isfile(_voice_file(voice)):
+            return jsonify({'error': 'The saved voice or its WAV is missing.'}), 404
+        if book['narrator_voice_id'] != voice_id:
+            conn.execute(
+                'UPDATE books SET narrator_voice_id=? WHERE id=?', (voice_id, book_id)
+            )
+    changed = book['narrator_voice_id'] != voice_id
+    if changed:
+        _clear_book_tts_segments(book_id)
+    return jsonify({'ok': True, 'voice_id': voice_id, 'name': voice['name'],
+                    'segments_cleared': changed})
+
+
+@app.route('/api/books/<int:book_id>/narrator-voice/preview', methods=['POST'])
+def preview_book_narrator_voice(book_id):
+    book = _load_book(book_id)
+    if not book:
+        return jsonify({'error': 'Book not found.'}), 404
+    body = request.get_json(silent=True) or {}
+    try:
+        voice_id = int(body.get('voice_id') or book['narrator_voice_id'])
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Choose a saved voice first.'}), 400
+    with get_conn() as conn:
+        voice = conn.execute('SELECT * FROM voices WHERE id=?', (voice_id,)).fetchone()
+    if not voice or not os.path.isfile(_voice_file(voice)):
+        return jsonify({'error': 'The saved voice or its WAV is missing.'}), 404
+    if tts.status().get('state') != 'ready':
+        tts.load_async()
+        return jsonify({'error': 'Higgs is loading. Try again shortly.'}), 503
+    sample_text = (
+        DEFAULT_SYNTHETIC_SAMPLE_TEXT
+        if str(book['language']).lower() == 'hu'
+        else DEFAULT_NARRATOR_PREVIEW_TEXT
+    )
+    try:
+        result = tts.generate_preview(
+            instruct='', sample_text=sample_text,
+            ref_audio=_voice_file(voice), ref_text=voice['ref_text'] or None,
+            language=book['language'],
+        )
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+    return jsonify({'audio_url': f'/api/audio/{result["cache_key"]}'})
 
 
 @app.route('/api/books/<int:book_id>/narrator', methods=['PUT'])
@@ -1127,7 +1305,12 @@ def preview_narrator(book_id):
     preview_text = raw_preview_text.strip() or DEFAULT_NARRATOR_PREVIEW_TEXT
     if len(preview_text) > MAX_NARRATOR_PREVIEW_TEXT_LENGTH:
         return jsonify({'error': 'Preview text is too long (max 1000 characters)'}), 400
-    narrator_ref, saved_ref_text = _book_narrator_reference(book_id)
+    try:
+        narrator_ref, saved_ref_text = _book_narrator_reference(
+            book_id, require_selected=True
+        )
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 409
     requested_ref_text = body.get('ref_text', saved_ref_text)
     narrator_ref_text = requested_ref_text.strip() if narrator_ref and isinstance(requested_ref_text, str) and requested_ref_text.strip() else None
     try:
@@ -1219,7 +1402,7 @@ def upload_narrator_ref_audio(book_id):
     f.save(path)
     with get_conn() as conn:
         conn.execute(
-            'UPDATE books SET narrator_ref_audio_path=?, narrator_ref_audio_name=?, '
+            'UPDATE books SET narrator_voice_id=NULL, narrator_ref_audio_path=?, narrator_ref_audio_name=?, '
             'narrator_ref_text=? WHERE id=?',
             (path, os.path.basename(f.filename), ref_text, book_id),
         )
@@ -1244,7 +1427,7 @@ def delete_narrator_ref_audio(book_id):
         path = row['narrator_ref_audio_path']
         ref_text = row['narrator_ref_text']
         conn.execute(
-            'UPDATE books SET narrator_ref_audio_path=NULL, narrator_ref_audio_name=NULL, '
+            'UPDATE books SET narrator_voice_id=NULL, narrator_ref_audio_path=NULL, narrator_ref_audio_name=NULL, '
             'narrator_ref_text=NULL WHERE id=?', (book_id,)
         )
 
@@ -1258,6 +1441,398 @@ def delete_narrator_ref_audio(book_id):
 # ════════════════════════════════════════════════════════════════════════════
 # Voice presets (saved narrator voices)
 # ════════════════════════════════════════════════════════════════════════════
+
+def _voice_json(row) -> dict:
+    return {
+        'id': row['id'], 'name': row['name'], 'kind': row['kind'],
+        'ref_audio_name': row['ref_audio_name'], 'ref_text': row['ref_text'],
+        'gender': row['gender'], 'age': row['age'], 'pitch': row['pitch'],
+        'accent': row['accent'],
+        'usage_count': row['usage_count'],
+        'available': os.path.isfile(_voice_file(row)),
+        'created_at': row['created_at'],
+    }
+
+
+VOICE_TAG_OPTIONS = {
+    'gender': {'unknown', 'female', 'male'},
+    'age': {'unknown', 'child', 'teenager', 'young adult', 'middle-aged', 'elderly'},
+    'pitch': {'unknown', 'very low pitch', 'low pitch', 'moderate pitch',
+              'high pitch', 'very high pitch'},
+    'accent': {'unknown', 'hungarian', 'other'},
+}
+
+
+def _voice_tags(values, current=None) -> dict:
+    tags = {}
+    for key, allowed in VOICE_TAG_OPTIONS.items():
+        value = str(values.get(key, current[key] if current else 'unknown') or 'unknown').strip().lower()
+        if value not in allowed:
+            raise ValueError(f'Invalid {key} voice tag.')
+        tags[key] = value
+    return tags
+
+
+def _voice_name(value) -> str:
+    name = str(value or '').strip()
+    if not name or len(name) > 80:
+        raise ValueError('A voice name is required (max 80 characters).')
+    return name
+
+
+def _voice_text(value) -> str:
+    transcript = str(value or '').strip()
+    if not transcript or len(transcript) > voice_preset_file.MAX_REF_TEXT_LENGTH:
+        raise ValueError('A matching transcript is required (max 20,000 characters).')
+    return transcript
+
+
+def _uploaded_voice_wav(upload) -> bytes:
+    if not upload or not (upload.filename or '').lower().endswith('.wav'):
+        raise ValueError('Choose a WAV reference recording.')
+    data = upload.read(voice_preset_file.MAX_AUDIO_BYTES + 1)
+    if len(data) > voice_preset_file.MAX_AUDIO_BYTES:
+        raise ValueError('The WAV is too large.')
+    info = voice_preset_file.probe_wav(data)
+    if not info or not info['duration_sec'] or not 1 <= info['duration_sec'] <= 30:
+        raise ValueError('Use a valid 1–30 second WAV recording.')
+    return data
+
+
+def _check_synthetic_candidate(path: str) -> None:
+    try:
+        audio, sample_rate = sf.read(path, dtype='float32')
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError('Higgs produced an unreadable WAV candidate.') from exc
+    if audio.ndim == 2:
+        audio = audio.mean(axis=1)
+    duration = len(audio) / sample_rate if sample_rate else 0
+    if not 1 <= duration <= 30 or not np.isfinite(audio).all() or not np.any(np.abs(audio) > 0.003):
+        raise ValueError('The generated candidate is silent or outside 1–30 seconds. Generate another.')
+
+
+@app.route('/api/voices')
+def list_voices():
+    with get_conn() as conn:
+        rows = conn.execute(
+            'SELECT voices.*, (SELECT COUNT(*) FROM books '
+            'WHERE books.narrator_voice_id=voices.id) AS usage_count '
+            'FROM voices ORDER BY kind, name COLLATE NOCASE'
+        ).fetchall()
+    return jsonify([_voice_json(row) for row in rows])
+
+
+@app.route('/api/voices/synthetic/candidates', methods=['POST'])
+def generate_synthetic_candidate():
+    if _export_exclusive_active():
+        return jsonify({'error': 'Voice generation is paused during export.'}), 503
+    if tts.status().get('state') != 'ready':
+        tts.load_async()
+        return jsonify({'error': 'Higgs is loading. Try again when the model is ready.'}), 503
+    body = request.get_json(silent=True) or {}
+    sample_text = str(body.get('text') or DEFAULT_SYNTHETIC_SAMPLE_TEXT).strip()
+    if not sample_text or len(sample_text) > MAX_SYNTHETIC_SAMPLE_TEXT_LENGTH:
+        return jsonify({'error': 'Enter 1–300 characters of sample text.'}), 400
+    seed = secrets.randbelow(2_147_483_648)
+    try:
+        result = tts.generate_preview(
+            instruct='', sample_text=sample_text, ref_audio=None,
+            ref_text=None, language='hu', seed_override=seed,
+        )
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+    candidate_id = result['cache_key']
+    try:
+        _check_synthetic_candidate(tts.cache_path(candidate_id))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 422
+    with _synthetic_candidates_lock:
+        now = time.time()
+        for key, (_, created) in list(_synthetic_candidates.items()):
+            if now - created > 3600:
+                _synthetic_candidates.pop(key, None)
+        spoken_text = (
+            apply_text_normalization(sample_text, 'hu', tts_friendly=True)
+            if app_settings.get('normalize_text', True) else sample_text
+        )
+        _synthetic_candidates[candidate_id] = (spoken_text, now)
+    return jsonify({
+        'ok': True, 'candidate_id': candidate_id,
+        'audio_url': f'/api/audio/{candidate_id}', 'seed': seed,
+    })
+
+
+@app.route('/api/voices/synthetic', methods=['POST'])
+def save_synthetic_voice():
+    body = request.get_json(silent=True) or {}
+    try:
+        name = _voice_name(body.get('name'))
+        tags = _voice_tags(body)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    candidate_id = str(body.get('candidate_id') or '')
+    with _synthetic_candidates_lock:
+        candidate = _synthetic_candidates.get(candidate_id)
+    if not candidate or time.time() - candidate[1] > 3600:
+        return jsonify({'error': 'Generate and preview a new candidate first.'}), 400
+    source = tts.cache_path(candidate_id)
+    if not os.path.isfile(source):
+        return jsonify({'error': 'The candidate audio has expired.'}), 410
+    path = _copy_voice_to_library(source, 'synthetic')
+    try:
+        with get_conn() as conn:
+            cursor = conn.execute(
+                'INSERT INTO voices (name, kind, ref_audio_path, ref_audio_name, ref_text, '
+                'gender, age, pitch, accent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (name, 'synthetic', path, f'{name}.wav', candidate[0],
+                 tags['gender'], tags['age'], tags['pitch'], tags['accent']),
+            )
+            voice_id = cursor.lastrowid
+    except sqlite3.IntegrityError:
+        _delete_file_if_exists(path)
+        return jsonify({'error': 'A synthetic voice with that name already exists.'}), 409
+    return jsonify({'ok': True, 'id': voice_id, 'name': name})
+
+
+@app.route('/api/voices/reference', methods=['POST'])
+def save_reference_voice():
+    try:
+        name = _voice_name(request.form.get('name'))
+        transcript = _voice_text(request.form.get('ref_text'))
+        tags = _voice_tags(request.form)
+        audio = _uploaded_voice_wav(request.files.get('file'))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    path = os.path.join(_voice_directory('reference'), f'{uuid.uuid4().hex}.wav')
+    with open(path, 'wb') as output:
+        output.write(audio)
+    try:
+        with get_conn() as conn:
+            cursor = conn.execute(
+                'INSERT INTO voices (name, kind, ref_audio_path, ref_audio_name, ref_text, '
+                'gender, age, pitch, accent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (name, 'reference', path, os.path.basename(request.files['file'].filename),
+                 transcript, tags['gender'], tags['age'], tags['pitch'], tags['accent']),
+            )
+            voice_id = cursor.lastrowid
+    except sqlite3.IntegrityError:
+        _delete_file_if_exists(path)
+        return jsonify({'error': 'A reference voice with that name already exists.'}), 409
+    return jsonify({'ok': True, 'id': voice_id, 'name': name})
+
+
+@app.route('/api/voices/<int:voice_id>', methods=['PATCH'])
+def edit_voice(voice_id):
+    if _export_exclusive_active():
+        return jsonify({'error': 'Wait until audio generation finishes before editing a voice.'}), 409
+    body = request.get_json(silent=True) or {}
+    with get_conn() as conn:
+        row = conn.execute('SELECT * FROM voices WHERE id=?', (voice_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'Voice not found.'}), 404
+        try:
+            name = _voice_name(body.get('name', row['name']))
+            raw_transcript = body.get('ref_text', row['ref_text'])
+            transcript = (
+                '' if not row['ref_text'] and not str(raw_transcript or '').strip()
+                else _voice_text(raw_transcript)
+            )
+            if row['kind'] == 'synthetic' and transcript != row['ref_text']:
+                raise ValueError('Generate a new candidate to change a synthetic voice transcript.')
+            tags = _voice_tags(body, row)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        try:
+            conn.execute(
+                'UPDATE voices SET name=?, ref_text=?, gender=?, age=?, pitch=?, accent=? '
+                'WHERE id=?',
+                (name, transcript, tags['gender'], tags['age'], tags['pitch'],
+                 tags['accent'], voice_id),
+            )
+        except sqlite3.IntegrityError:
+            return jsonify({'error': 'A voice with that name already exists in this group.'}), 409
+        book_ids = [book['id'] for book in conn.execute(
+            'SELECT id FROM books WHERE narrator_voice_id=?', (voice_id,)
+        )]
+    if transcript != row['ref_text']:
+        tts.invalidate_voice_prompt(_voice_file(row), row['ref_text'])
+        for book_id in book_ids:
+            _clear_book_tts_segments(book_id)
+    return jsonify({'ok': True, 'id': voice_id, 'affected_books': len(book_ids)})
+
+
+@app.route('/api/voices/<int:voice_id>/audio', methods=['PUT'])
+def replace_reference_voice_audio(voice_id):
+    if _export_exclusive_active():
+        return jsonify({'error': 'Wait until audio generation finishes before replacing a voice.'}), 409
+    with get_conn() as conn:
+        row = conn.execute('SELECT * FROM voices WHERE id=?', (voice_id,)).fetchone()
+    if not row:
+        return jsonify({'error': 'Voice not found.'}), 404
+    if row['kind'] != 'reference':
+        return jsonify({'error': 'Use a new generated candidate for synthetic voices.'}), 400
+    try:
+        transcript = _voice_text(request.form.get('ref_text'))
+        audio = _uploaded_voice_wav(request.files.get('file'))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    path = os.path.join(_voice_directory('reference'), f'{uuid.uuid4().hex}.wav')
+    with open(path, 'wb') as output:
+        output.write(audio)
+    with get_conn() as conn:
+        conn.execute(
+            'UPDATE voices SET ref_audio_path=?, ref_audio_name=?, ref_text=? WHERE id=?',
+            (path, os.path.basename(request.files['file'].filename), transcript, voice_id),
+        )
+        book_ids = [book['id'] for book in conn.execute(
+            'SELECT id FROM books WHERE narrator_voice_id=?', (voice_id,)
+        )]
+    tts.invalidate_voice_prompt(_voice_file(row), row['ref_text'])
+    _delete_file_if_exists(_voice_file(row))
+    for book_id in book_ids:
+        _clear_book_tts_segments(book_id)
+    return jsonify({'ok': True, 'affected_books': len(book_ids)})
+
+
+@app.route('/api/voices/<int:voice_id>/candidate', methods=['PUT'])
+def replace_synthetic_voice_audio(voice_id):
+    if _export_exclusive_active():
+        return jsonify({'error': 'Wait until audio generation finishes before replacing a voice.'}), 409
+    with get_conn() as conn:
+        row = conn.execute('SELECT * FROM voices WHERE id=?', (voice_id,)).fetchone()
+    if not row:
+        return jsonify({'error': 'Voice not found.'}), 404
+    if row['kind'] != 'synthetic':
+        return jsonify({'error': 'Only synthetic voices use generated candidates.'}), 400
+    body = request.get_json(silent=True) or {}
+    candidate_id = str(body.get('candidate_id') or '')
+    with _synthetic_candidates_lock:
+        candidate = _synthetic_candidates.get(candidate_id)
+    if not candidate or time.time() - candidate[1] > 3600:
+        return jsonify({'error': 'Generate a new candidate first.'}), 400
+    source = tts.cache_path(candidate_id)
+    if not os.path.isfile(source):
+        return jsonify({'error': 'The candidate audio has expired.'}), 410
+    path = _copy_voice_to_library(source, 'synthetic')
+    with get_conn() as conn:
+        conn.execute(
+            'UPDATE voices SET ref_audio_path=?, ref_text=? WHERE id=?',
+            (path, candidate[0], voice_id),
+        )
+        book_ids = [book['id'] for book in conn.execute(
+            'SELECT id FROM books WHERE narrator_voice_id=?', (voice_id,)
+        )]
+    tts.invalidate_voice_prompt(_voice_file(row), row['ref_text'])
+    _delete_file_if_exists(_voice_file(row))
+    for book_id in book_ids:
+        _clear_book_tts_segments(book_id)
+    return jsonify({'ok': True, 'affected_books': len(book_ids)})
+
+
+@app.route('/api/voices/<int:voice_id>', methods=['DELETE'])
+def delete_library_voice(voice_id):
+    if _export_exclusive_active():
+        return jsonify({'error': 'Wait until audio generation finishes before deleting a voice.'}), 409
+    with get_conn() as conn:
+        row = conn.execute('SELECT * FROM voices WHERE id=?', (voice_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'Voice not found.'}), 404
+        book_ids = [book['id'] for book in conn.execute(
+            'SELECT id FROM books WHERE narrator_voice_id=?', (voice_id,)
+        )]
+        conn.execute(
+            'UPDATE books SET narrator_voice_id=NULL, narrator_ref_audio_path=NULL, '
+            'narrator_ref_audio_name=NULL, narrator_ref_text=NULL '
+            'WHERE narrator_voice_id=?', (voice_id,),
+        )
+        conn.execute('DELETE FROM voices WHERE id=?', (voice_id,))
+        legacy_path = None
+        if row['legacy_preset_id']:
+            legacy = conn.execute(
+                'SELECT ref_audio_path FROM voice_presets WHERE id=?',
+                (row['legacy_preset_id'],),
+            ).fetchone()
+            if legacy:
+                legacy_path = legacy['ref_audio_path']
+                conn.execute('DELETE FROM voice_presets WHERE id=?',
+                             (row['legacy_preset_id'],))
+    tts.invalidate_voice_prompt(_voice_file(row), row['ref_text'])
+    _delete_file_if_exists(_voice_file(row))
+    if legacy_path:
+        _delete_file_if_exists(legacy_path)
+    for book_id in book_ids:
+        _clear_book_tts_segments(book_id)
+    return jsonify({'ok': True, 'affected_books': len(book_ids)})
+
+
+@app.route('/api/voices/<int:voice_id>/preview', methods=['POST'])
+def preview_library_voice(voice_id):
+    with get_conn() as conn:
+        row = conn.execute('SELECT * FROM voices WHERE id=?', (voice_id,)).fetchone()
+    if not row or not os.path.isfile(_voice_file(row)):
+        return jsonify({'error': 'Voice or reference WAV not found.'}), 404
+    if tts.status().get('state') != 'ready':
+        tts.load_async()
+        return jsonify({'error': 'Higgs is loading. Try again shortly.'}), 503
+    body = request.get_json(silent=True) or {}
+    sample_text = str(body.get('text') or DEFAULT_SYNTHETIC_SAMPLE_TEXT).strip()
+    if not sample_text or len(sample_text) > MAX_NARRATOR_PREVIEW_TEXT_LENGTH:
+        return jsonify({'error': 'Enter 1–1000 characters of sample text.'}), 400
+    try:
+        result = tts.generate_preview(
+            instruct='', sample_text=sample_text, ref_audio=_voice_file(row),
+            ref_text=row['ref_text'] or None, language='hu',
+        )
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+    return jsonify({'audio_url': f'/api/audio/{result["cache_key"]}'})
+
+
+@app.route('/api/voices/<int:voice_id>/export')
+def export_library_voice(voice_id):
+    with get_conn() as conn:
+        row = conn.execute('SELECT * FROM voices WHERE id=?', (voice_id,)).fetchone()
+    if not row:
+        return jsonify({'error': 'Voice not found.'}), 404
+    try:
+        archive = voice_preset_file.build_archive_from_path(
+            row['name'], _voice_file(row), ref_text=row['ref_text'],
+            source_filename=row['ref_audio_name'], created_at=row['created_at'],
+        )
+    except voice_preset_file.VoicePresetFileError as exc:
+        return jsonify({'error': str(exc)}), 410
+    return send_file(
+        io.BytesIO(archive), mimetype='application/octet-stream',
+        as_attachment=True,
+        download_name=voice_preset_file.safe_download_name(row['name']),
+    )
+
+
+@app.route('/api/voices/import', methods=['POST'])
+def import_library_voice():
+    upload = request.files.get('file')
+    if not upload or not (upload.filename or '').lower().endswith('.aurisvoice'):
+        return jsonify({'error': 'Choose an .aurisvoice file.'}), 400
+    kind = str(request.form.get('kind') or 'reference').strip().lower()
+    if kind not in {'reference', 'synthetic'}:
+        return jsonify({'error': 'Invalid voice group.'}), 400
+    try:
+        payload = voice_preset_file.read_archive_from_stream(upload.stream)
+        transcript = str(payload.ref_text or '').strip()
+    except (ValueError, voice_preset_file.VoicePresetFileError) as exc:
+        return jsonify({'error': str(exc)}), 400
+    path = os.path.join(_voice_directory(kind), f'{uuid.uuid4().hex}.wav')
+    with open(path, 'wb') as output:
+        output.write(payload.audio_bytes)
+    with get_conn() as conn:
+        name = _unique_voice_name(conn, kind, payload.name)
+        cursor = conn.execute(
+            'INSERT INTO voices (name, kind, ref_audio_path, ref_audio_name, ref_text) '
+            'VALUES (?, ?, ?, ?, ?)',
+            (name, kind, path, payload.source_filename, transcript),
+        )
+    return jsonify({'ok': True, 'id': cursor.lastrowid, 'name': name,
+                    'renamed': name != payload.name})
 
 
 @app.route('/api/voice-presets')
@@ -1349,7 +1924,7 @@ def apply_voice_preset(book_id):
     display_name = preset['ref_audio_name'] or f"{preset['name']}.wav"
     with get_conn() as conn:
         conn.execute(
-            'UPDATE books SET narrator_ref_audio_path=?, narrator_ref_audio_name=?, '
+            'UPDATE books SET narrator_voice_id=NULL, narrator_ref_audio_path=?, narrator_ref_audio_name=?, '
             'narrator_ref_text=? WHERE id=?',
             (path, display_name, preset['ref_text'], book_id),
         )
@@ -1520,6 +2095,10 @@ def tts_generate():
     chapter_id = body.get('chapter_id')
     segment_index = body.get('segment_index', 0)
 
+    voice_error = _voice_required_response(book_id)
+    if voice_error:
+        return voice_error
+
     status = tts.status()
     if status['state'] != 'ready':
         return jsonify({'error': 'Model not ready', 'status': status}), 503
@@ -1584,7 +2163,7 @@ def tts_generate():
         ref_audio = char_data.get('ref_audio_path') or None
         ref_text = (char_data.get('ref_text') or None) if ref_audio else None
     else:
-        ref_audio, ref_text = _book_narrator_reference(book_id)
+        ref_audio, ref_text = _book_narrator_reference(book_id, require_selected=True)
 
     item = {
         'text': seg['enriched_text'],
@@ -1790,7 +2369,7 @@ def _ensure_audio_for_chapter(
                 'SELECT * FROM characters WHERE book_id=?', (book_id,)
             ).fetchall()
         }
-    narrator_ref, narrator_ref_text = _book_narrator_reference(book_id)
+    narrator_ref, narrator_ref_text = _book_narrator_reference(book_id, require_selected=True)
 
     pending_idx: list[int] = []
     pending_items: list[dict] = []
@@ -2109,6 +2688,9 @@ def generate_chapter_audio(book_id, chapter_id):
         ).fetchone()
     if not exists:
         return jsonify({'error': 'Chapter not found'}), 404
+    voice_error = _voice_required_response(book_id)
+    if voice_error:
+        return voice_error
 
     key = (book_id, chapter_id)
     with _chapter_generation_lock:
@@ -2631,6 +3213,10 @@ def export_chapter(book_id, chapter_id):
             'active_book_id': other['book_id'],
         }), 409
 
+    voice_error = _voice_required_response(book_id)
+    if voice_error:
+        return voice_error
+
     not_ready = _tts_not_ready_response()
     if not_ready:
         return not_ready
@@ -2653,6 +3239,9 @@ def export_chapter(book_id, chapter_id):
 
 @app.route('/api/books/<int:book_id>/export/full', methods=['POST'])
 def export_full(book_id):
+    voice_error = _voice_required_response(book_id)
+    if voice_error:
+        return voice_error
     body = request.get_json(force=True) or {}
     audio_fmt = body.get('audio_fmt', 'wav')
     sub_fmt = _resolve_sub_fmt(book_id, body.get('sub_fmt', 'srt'))
@@ -2695,6 +3284,10 @@ def export_chapterwise(book_id):
                      'stop it there first.',
             'active_book_id': other['book_id'],
         }), 409
+
+    voice_error = _voice_required_response(book_id)
+    if voice_error:
+        return voice_error
 
     not_ready = _tts_not_ready_response()
     if not_ready:
@@ -3000,7 +3593,7 @@ def delete_bookmark(book_id, bm_id):
 
 @app.route('/settings')
 def settings_page():
-    return render_template('settings.html')
+    return render_template('settings.html', synthetic_sample_text=DEFAULT_SYNTHETIC_SAMPLE_TEXT)
 
 
 @app.route('/docs')

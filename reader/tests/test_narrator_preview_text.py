@@ -15,10 +15,15 @@ class NarratorPreviewTextTest(unittest.TestCase):
         database.DB_PATH = os.path.join(self.tmp.name, "reader.db")
         app_module._startup_complete = True
         database.init_db()
+        self.reference_path = os.path.join(self.tmp.name, 'narrator.wav')
+        with open(self.reference_path, 'wb') as reference:
+            reference.write(b'RIFF-test')
         with database.get_conn() as conn:
             conn.execute(
-                "INSERT INTO books (id, title, file_path, file_type, language) "
-                "VALUES (1, 'Test', 'test.txt', 'txt', 'hu')"
+                "INSERT INTO books (id, title, file_path, file_type, language, "
+                "narrator_ref_audio_path) "
+                "VALUES (1, 'Test', 'test.txt', 'txt', 'hu', ?)",
+                (self.reference_path,),
             )
             conn.execute(
                 "INSERT INTO chapters (id, book_id, title, order_num, content) "
@@ -41,9 +46,8 @@ class NarratorPreviewTextTest(unittest.TestCase):
         with patch.object(app_module.tts, "load_async"):
             page = self.client.get("/voice-studio/1")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(
-            app_module.DEFAULT_NARRATOR_PREVIEW_TEXT.encode(), page.data
-        )
+        self.assertIn(b'id="book-narrator-voice"', page.data)
+        self.assertNotIn(b'id="narrator-preview-text"', page.data)
         self.assertIn(b'class="preview-spinner"', page.data)
         self.assertIn(b'aria-busy="false"', page.data)
         self.assertIn(b'aria-pressed="false"', page.data)
@@ -68,7 +72,8 @@ class NarratorPreviewTextTest(unittest.TestCase):
 
         with patch.object(app_module.tts, "load_async"):
             page = self.client.get("/voice-studio/1")
-        self.assertIn("Szép magyar napot!".encode(), page.data)
+        self.assertIn(b'id="book-narrator-voice"', page.data)
+        self.assertNotIn("Szép magyar napot!".encode(), page.data)
 
     def test_preview_uses_submitted_text_and_book_language(self):
         with patch.object(app_module.tts, "status", return_value={"state": "ready"}), patch.object(
@@ -82,7 +87,7 @@ class NarratorPreviewTextTest(unittest.TestCase):
         self.assertEqual(response.get_json()["audio_url"], "/api/audio/test-key")
         self.assertEqual(generate.call_args.kwargs["sample_text"], "Vajon visszatér még?")
         self.assertEqual(generate.call_args.kwargs["language"], "hu")
-        self.assertIsNone(generate.call_args.kwargs["ref_audio"])
+        self.assertEqual(generate.call_args.kwargs["ref_audio"], self.reference_path)
 
     def test_blank_preview_resets_to_default_and_long_text_is_rejected(self):
         response = self.client.put(
