@@ -126,3 +126,12 @@ géppel generált „Vajon visszatér még?” referenciát; a rövidített ered
 utáni közbevetéseket is külön szegmensre választjuk. A diagnózis, a
 háromutas helyi próba és a korlátok a
 [kérdőmondat-auditban](question-prosody-2026-10-07.md) olvashatók.
+
+**ER Sno helyi kiegészítés (2026-10-07):** A felhasználó a két természetes
+kérdés-WAV-val kiegészített referenciát választotta. Az MLX worker az ER Sno
+kérdéseinél az eredeti alap-WAV-ot és a „Megmondhatom nekik…” + „Fogjak
+felmosót?” kérdésmintát, mindegyiket saját átiratával kapja. A Voice Studio
+alkalmazás-API-ján készült „Elég?” kimenet bitre azonos lett a jóváhagyott
+helyi próba fájljával. Más hangok és a kijelentő batch útvonala változatlan.
+A két extra WAV a helyi hangtárban van, nem a Git-repóban; a szokásos
+`.aurisvoice` export jelenleg nem csomagolja őket.

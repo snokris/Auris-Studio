@@ -3,7 +3,7 @@
 Állapot: 2026-10-07. Kutatási jegyzet, nem beépített prozódiavezérlés.
 A korábbi audit mintái nem mentek át a felhasználói meghallgatáson. Az ER Sno
 hang későbbi, több kérdésreferenciás helyi próbájából a „Fogjak felmosót?”-ös
-változatot választotta a felhasználó; ez még nem működik az alkalmazásban.
+változatot választotta a felhasználó; ez az ER Sno helyi hangtárában már aktív.
 A részletek a [kísérleti naplóban](question-prosody-2026-10-07.md) vannak.
 
 ## A nyelvi cél
@@ -121,9 +121,9 @@ reader/.mlx_runtime/bin/python reader/scripts/compare_higgs_question_references.
 Az ER Sno hanggal a kontrollált több-referenciás próba lefutott. A mentett
 alaphang és két ugyanazon hangú kérdésminta (a hosszabb „Megmondhatom nekik…”
 és a „Fogjak felmosót?”) kombinációját választotta a felhasználó. Az
-alkalmazásban a több referencia még nincs bekötve; a helyi hangfájlok Gitből
-ki vannak zárva. A fájlnév alapján felvett átiratokat a tényleges felvétellel
-egyeztetni kell a beépítés előtt.
+alkalmazásban az ER Sno hang kérdései már ezt a háromreferenciás útvonalat
+használják; a helyi hangfájlok Gitből ki vannak zárva. A két kérdés-WAV
+átiratát a fájlnév és a felhasználói meghallgatás alapján rögzítettük.
 
 Azonos modell, seed és célszöveg mellett csak a referencia változzon;
 azonos beszélő, összevethető felvételi minőség és pontos átirat szükséges.

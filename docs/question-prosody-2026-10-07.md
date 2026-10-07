@@ -4,9 +4,9 @@
 
 A felhasználó az audit és az utána készített seed-próbák bemutatott magyar
 mintáit elutasította. A későbbi, ER Sno hanggal készült, több kérdésreferenciás
-helyi próbák közül a „Fogjak felmosót?”-ös változatot választotta.
-**Ez még nem beépített akusztikai javítás.** A szegmentálás programhibájának
-javítása önmagában nem bizonyítja a hanglejtés helyességét.
+helyi próbák közül a „Fogjak felmosót?”-ös változatot választotta. Ezt az
+ER Sno helyi hangtárának kérdésútvonalába bekötöttük. A szegmentálás
+programhibájának javítása önmagában nem bizonyítja a hanglejtés helyességét.
 Az új, kérdéstípusokat és rövid/hosszú dallamhordozó szakaszokat megkülönböztető
 [nyelvészeti követelmény és tesztterv](hungarian-question-intonation.md)
 váltja fel a pusztán mondatvégi hangmagasságot vizsgáló értékelést.
@@ -133,8 +133,9 @@ csak ezen a gépen működnek; GitHubon és új klónban nincsenek meg a WAV-ok.
 Mind a 12 kimenet érvényes, nem néma, 24 kHz-es mono WAV. A próba egyetlen
 generálás kondíciónként, ezért a generálási idők és a hallható különbségek
 nem bizonyítanak általános sebesség- vagy minőségjavulást. A természetességről
-a páronkénti emberi meghallgatás után döntünk; az új referencia még nincs
-bekötve az alkalmazásba.
+a páronkénti emberi meghallgatás után döntünk. E szakasz az első, még csak
+kísérleti állapotot írja le; a későbbi, kiválasztott kombináció bekötését
+alább rögzítjük.
 
 ### Célzott „Elég?” próba
 
@@ -160,6 +161,32 @@ A felhasználó ezután összehasonlításra kérte a „Fogjak felmosót?”-ö
 ugyanilyen hatmondatos sorozatát, majd erre változtatta a választását. A [külön mérési
 napló](../reader/audio_cache/benchmarks/er-sno-long-plus-felmosot-full-20261007/results.json)
 és a hozzá tartozó WAV-ok helyben elkészültek. Az „Elég?” és „Jó?” fájlok
-bitre azonosak a korábbi célzott próbában készült párjukkal. A kiválasztott
-referenciákat még nem kötöttük be az alkalmazásba; a mentett ER Sno hangot,
-a könyveket és a többi narrátort ez a dokumentált választás nem módosítja.
+bitre azonosak a korábbi célzott próbában készült párjukkal.
+
+### Alkalmazásbeli bekötés
+
+Az ER Sno mentett alap-WAV-ja mellett, az alkalmazás helyi hangtárában két
+kérdés-WAV és egy `.questions.json` oldalfájl él. Az oldalfájl a két kérdés
+átiratát és a három bemeneti WAV SHA-256 azonosítóit kapcsolja össze; az
+alapreferencia átirata továbbra is a mentett hang adatbázisrekordjában van. A Higgs/MLX
+kérdésútvonala ennél a hangnál **az eredeti alapreferenciát, a hosszabb
+„Megmondhatom nekik…” és a „Fogjak felmosót?” mintát ebben a sorrendben**
+adja át a modellnek. Kijelentéseknél megmarad az eredeti ötös kötegelt út,
+más hangok kérdéseinél a korábbi rövidített egyreferenciás út. Az új
+referenciák a kérdés-cache kulcsába kerülnek, ezért nem szolgálható ki
+véletlenül a régi hang.
+
+A futó Auris újraindult az új kóddal. A Voice Studio alkalmazás-API-ján
+generált „Elég?” WAV SHA-256 hash-e **bitre egyezik** a kiválasztott
+hatmondatos kísérlet „Elég?” fájljával. Az ER Sno-t használó két könyvben
+öt már legenerált, kérdőjelet tartalmazó szegmens hangját újragenerálásra
+jelöltük; a régi WAV-ok megmaradtak. Előtte helyi adatbázis-mentés készült:
+`reader/audio_cache/reader-before-er-sno-question-refs-20261007.db`.
+A Siló könyvoldali szegmens-API-ja a „Fogjak felmosót?” kérdést és az utána
+álló narrátori közbevetést külön egységre bontotta; a „Jól vagy, főnök?”
+kérdés a könyv tényleges generálási végpontján 24 kHz-es WAV-ként elkészült.
+
+A hangkönyvtár és ez a mentés Gitből kizárt helyi adat. Az `.aurisvoice`
+export jelenleg csak az alapreferenciát és átiratát hordozza: a két kérdés-WAV
+és az oldalfájl másik gépre viteléhez a hangtár e három fájlját is át kell
+másolni. A kód önmagában nem állítja be az ER Sno-t egy új telepítésen.
