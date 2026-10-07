@@ -38,11 +38,7 @@ A részletes, képernyőn követhető útmutató a futó alkalmazás **Docs** me
 - Az MLX hibrid út a kijelentő szegmenseket kötegben készíti (alapérték: 5), a kérdéseket külön referenciaággal. A kérdés utáni „– kérdezte” jellegű közbevetés külön szegmensre kerül. A korábbi ötmondatos **helyi** mérésben ez az út közel hatszor gyorsabb volt a soros Higgs/MPS útnál; ez nem általános sebességgarancia. A kérdő hanglejtés sem tökéletes minden mondatnál.
 - Az opcionális stúdiómasztering, a beszédszünetek és az MP3-kódolás a Settingsben állítható. A lejátszás és az export ugyanazt a könyvhöz mentett narrátorhangot használja.
 
-### ER Sno kérdésreferenciái: csak ezen a gépen
 
-A mostani kódban egy mentett hang mellé kérdésminták kapcsolhatók. Az ER Sno helyi hangtárában az alap-WAV mellett a jóváhagyott **„Megmondhatom nekik…”** és **„Fogjak felmosót?”** WAV szerepel; az MLX a kérdő mondatokat ezekkel együtt generálja. Kijelentéseknél és más hangoknál a korábbi útvonal marad. A részletes mérés és a bekötés a [kérdőmondat-naplóban](docs/question-prosody-2026-10-07.md) olvasható.
-
-**Fontos:** a mentett hangtár, az ER Sno két extra WAV-ja és a hozzájuk tartozó `.questions.json` fájl helyi adat, nincs a Git-repóban. Egy új klónban a funkció kódja megvan, de az ER Sno-profil nem jelenik meg automatikusan. A `.aurisvoice` export jelenleg csak az alap-WAV-ot és átiratát viszi át; az extra kérdésfájlokat külön kell másolni. A saját hangfelvételeket csak megfelelő jogosultsággal használd.
 
 ## Fejlesztés és dokumentáció
 
