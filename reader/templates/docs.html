@@ -56,7 +56,7 @@
       </div></div>
       <div class="docs-two-column"><div><h3>Apple Silicon</h3><ul class="docs-check-list">
         <li>A <strong>Backend → Auto</strong> M-szériás Macen a natív MLX útvonalat választja. A modell külön <code>.mlx_runtime</code> környezetben fut.</li>
-        <li>A kijelentések kötegben készülhetnek; a <strong>Hybrid question reference</strong> bekapcsolva külön ágon kezeli a kérdéseket a természetesebb hanglejtésért. A kérdésreferencia első előállítása egyszeri időt vehet igénybe.</li>
+        <li>A kijelentések kötegben készülhetnek; a <strong>Hybrid question reference</strong> bekapcsolva külön ágon kezeli a kérdéseket. Ehhez a narrátor eredeti WAV-jából készül egy változat, amelyben legfeljebb egy túl hosszú belső szünet rövidül; géppel generált kérdést már nem használunk második referenciának.</li>
         <li>Az <strong>MLX narration batch size</strong> alapértéke 5; memóriahiánynál csökkenthető. Első használatkor a modell letöltése és betöltése hosszabb lehet.</li>
       </ul></div><div><h3>Kompatibilitás</h3><ul class="docs-check-list">
         <li>Más platformokon az <strong>Auto</strong> a Transformers útvonalat választja. Ez kompatibilitási lehetőség; a projekt elsődleges célplatformja az Apple Silicon.</li>
@@ -71,7 +71,7 @@
       </div></div>
       <ul class="docs-check-list">
         <li>A <strong>Normalize numbers before speech</strong> beállítás a számokat és többek között az évszámokat, dátumokat, időpontokat, sorszámokat és pénzösszegeket a felolvasáshoz alakítja át. Egyedi, kétértelmű alakokat érdemes próbaként meghallgatni.</li>
-        <li>A kijelentéseket és kérdéseket a rendszer külön mondatszegmensként kezeli. A hibrid MLX kérdésreferencia javíthatja a kérdő hanglejtést, de nem garantál minden szövegnél tökéletes prozódiát.</li>
+        <li>A kijelentéseket és kérdéseket a rendszer külön mondatszegmensként kezeli, a kérdés utáni „– kérdezte” és „he asked” közbevetéseket is leválasztva. A hibrid MLX út javíthatja a kérdő hanglejtést, de nem garantál minden szövegnél tökéletes prozódiát.</li>
         <li>Magyar akcentushoz a magyarul beszélő referenciahang és a pontos magyar átirat különösen fontos. Szintetikus hangnál generálj több jelöltet, és a meghallgatott, jól ejtő hangot mentsd el.</li>
       </ul>
     </section>

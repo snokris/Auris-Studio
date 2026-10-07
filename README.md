@@ -107,10 +107,15 @@ Az Auris Studio kizárólag a **Higgs TTS 3 — 4B** modellt használja. A magya
 
 Apple Siliconon a Higgs natív MLX hibrid backendje az alapértelmezett. A
 kijelentéseket legfeljebb ötös batchben készíti, a kérdéseket pedig külön, a
-narrátorhangból egyszer elkészített, gyorsítótárazott kérdésreferenciával.
-A korábbi ötmondatos helyi mérésben a hibrid út közel hatszor gyorsabb volt a
-Higgs/MPS soros útvonalánál; az új kérdésreferencia első elkészítése további
-egyszeri időt igényel.
+narrátor eredeti WAV-jából származtatott, belső hosszú szünetében rövidített
+referenciával. A korábbi ötmondatos helyi mérésben a hibrid út közel hatszor
+gyorsabb volt a Higgs/MPS soros útvonalánál. A kérdés utáni párbeszédjelölő
+közbevetés („– kérdezte”, „he asked”) külön szegmensre kerül, hogy a kérdés
+megőrizze kérdőjeles végét.
+
+A kérdőmondatok hibájának diagnózisa, a magyar és angol akusztikai
+összehasonlítás, valamint a helyi meghallgatható A/B minták:
+[Kérdő mondatok — 2026-10-07](docs/question-prosody-2026-10-07.md).
 
 \* A Higgs licence hangoskönyveknél jól látható „Boson AI Higgs Audio” forrásmegjelölést kér, a hangklónozáshoz pedig a beszélő hozzájárulása szükséges. Részletek a [hivatalos modellkártyán](https://huggingface.co/bosonai/higgs-tts-3-4b).
 

@@ -162,6 +162,16 @@ def _startup():
             if app_settings.migrate_tts_expression_policy_version():
                 with get_conn() as conn:
                     conn.execute('DELETE FROM tts_segments')
+            # Persisted audio rows bypass engine cache keys. Only chapters
+            # containing questions need rebuilding for the corrected segment
+            # boundary and MLX question-reference policy.
+            if app_settings.migrate_tts_question_policy_version():
+                with get_conn() as conn:
+                    conn.execute(
+                        'DELETE FROM tts_segments WHERE chapter_id IN '
+                        '(SELECT chapter_id FROM tts_segments WHERE instr(text, ?) > 0)',
+                        ('?',),
+                    )
         except Exception:
             raise
         # Load TTS lazily in the reader/voice studio. The library/import path

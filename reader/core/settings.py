@@ -22,6 +22,7 @@ _DEFAULT_HIGGS_MLX_MODEL_PATH = str(
 LEGACY_NARRATOR_INSTRUCT = 'female, middle-aged, moderate pitch, american accent'
 DEFAULT_NARRATOR_INSTRUCT = 'male, elderly, low pitch, british accent'
 TTS_EXPRESSION_POLICY_VERSION = 2
+TTS_QUESTION_POLICY_VERSION = 1
 
 DEFAULTS: dict = {
     # Higgs TTS 3. Auto selects native MLX on Apple Silicon and the existing
@@ -75,6 +76,8 @@ DEFAULTS: dict = {
 
     # Internal migration marker for legacy expression-tag handling.
     'tts_expression_policy_version': TTS_EXPRESSION_POLICY_VERSION,
+    # One-time invalidation when question segmentation/conditioning changes.
+    'tts_question_policy_version': TTS_QUESTION_POLICY_VERSION,
 
     # Export defaults
     'audio_format': 'wav',
@@ -163,6 +166,23 @@ def migrate_tts_expression_policy_version() -> bool:
         return False
 
     save({'tts_expression_policy_version': TTS_EXPRESSION_POLICY_VERSION})
+    return True
+
+
+def migrate_tts_question_policy_version() -> bool:
+    """Report whether persisted question-containing chapters need rebuilding."""
+    try:
+        if SETTINGS_FILE.exists():
+            with open(SETTINGS_FILE, encoding='utf-8') as f:
+                saved = json.load(f)
+        else:
+            saved = {}
+        previous = int(saved.get('tts_question_policy_version', 0))
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        previous = 0
+    if previous == TTS_QUESTION_POLICY_VERSION:
+        return False
+    save({'tts_question_policy_version': TTS_QUESTION_POLICY_VERSION})
     return True
 
 

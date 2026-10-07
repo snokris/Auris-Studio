@@ -85,6 +85,34 @@ class SettingsTtsCacheInvalidationTest(unittest.TestCase):
         )
         self.assertFalse(settings.migrate_tts_expression_policy_version())
 
+    def test_question_policy_migration_clears_only_question_chapters(self):
+        with database.get_conn() as conn:
+            conn.execute(
+                "INSERT INTO chapters (id, book_id, title, order_num, content) "
+                "VALUES (2, 1, 'Chapter 2', 1, 'Egy kérdés?')"
+            )
+            conn.execute(
+                "INSERT INTO tts_segments "
+                "(book_id, chapter_id, segment_index, text, enriched_text, cache_key, audio_path) "
+                "VALUES (1, 2, 0, 'Egy kérdés?', 'Egy kérdés?', 'question-key', 'question.wav')"
+            )
+        settings.save({
+            'tts_expression_policy_version': settings.TTS_EXPRESSION_POLICY_VERSION,
+            'tts_question_policy_version': 0,
+        })
+        app_module._startup_complete = False
+
+        self.assertEqual(self.client.get('/docs').status_code, 200)
+        with database.get_conn() as conn:
+            remaining = conn.execute(
+                'SELECT chapter_id FROM tts_segments ORDER BY chapter_id'
+            ).fetchall()
+        self.assertEqual([row[0] for row in remaining], [1])
+        self.assertEqual(
+            settings.load()['tts_question_policy_version'],
+            settings.TTS_QUESTION_POLICY_VERSION,
+        )
+
     def test_legacy_omnivoice_settings_are_dropped(self):
         settings.SETTINGS_FILE.write_text(json.dumps({
             'tts_engine': 'omnivoice',
