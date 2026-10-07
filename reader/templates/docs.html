@@ -5,57 +5,99 @@
   <aside class="docs-sidebar" aria-label="Dokumentáció tartalomjegyzéke"><div class="docs-sidebar-inner">
     <div class="docs-toc-label">Tartalom</div>
     <nav class="docs-toc">
-      <a href="#overview" class="active">Áttekintés</a><a href="#higgs">Higgs TTS 3</a>
-      <a href="#voices">Hang és klónozás</a><a href="#hungarian">Magyar szöveg</a>
-      <a href="#export">Export</a><a href="#troubleshooting">Hibaelhárítás</a>
+      <a href="#overview" class="active">Áttekintés</a>
+      <a href="#start">Első lépések</a>
+      <a href="#voices">Narrátorhangok</a>
+      <a href="#higgs">Higgs és Apple Silicon</a>
+      <a href="#hungarian">Magyar felolvasás</a>
+      <a href="#reading">Olvasás és export</a>
+      <a href="#troubleshooting">Hibaelhárítás</a>
     </nav>
   </div></aside>
   <main class="docs-main">
-    <header class="docs-hero" id="overview"><div><h1>Auris Studio dokumentáció</h1>
-      <p>Helyi könyvolvasás és audiobook-export egyetlen, élethű narrátorhanggal, Higgs TTS 3 alapon.</p></div>
-      <a class="docs-settings-link" href="/settings">Beállítások megnyitása <span aria-hidden="true">→</span></a>
-    </header>
-    <section class="docs-section docs-engine-section" id="higgs">
+    <header class="docs-hero" id="overview"><div>
+      <h1>Auris Studio dokumentáció</h1>
+      <p>Helyi könyvolvasás és hangoskönyvkészítés magyar, egynarrátoros felolvasáshoz. A jelenlegi alkalmazás egyetlen beszédmotort használ: Higgs TTS 3 — 4B.</p>
+    </div><a class="docs-settings-link" href="/settings">Beállítások megnyitása <span aria-hidden="true">→</span></a></header>
+
+    <section class="docs-section" id="start">
       <div class="docs-section-heading"><span class="docs-section-index">01</span><div>
-        <h2>Higgs TTS 3 — 4B</h2><p>Az Auris Studio kizárólagos beszédmotorja, magyar egynarrátoros felolvasásra hangolva.</p>
+        <h2>Első lépések</h2><p>Az új könyvhöz előbb egy mentett narrátorhang kell; a könyvben csak ezután indulhat a generálás.</p>
+      </div></div>
+      <ol class="docs-number-list">
+        <li>A <strong>Library</strong> oldalon importálj EPUB-, PDF- vagy TXT-fájlt. Az alkalmazás fejezetekre bontja a könyvet; a tartalomjegyzékben a fejezetek utólag szerkeszthetők.</li>
+        <li>A <a href="/settings#voice-library">Settings → Narrator voice library</a> részen készíts és ments szintetikus hangot, vagy adj hozzá saját referencia-WAV-ot.</li>
+        <li>Nyisd meg a könyv <strong>Voice Studio</strong> oldalát, válassz egy mentett hangot, hallgasd meg saját próbaszöveggel, majd nyomd meg a <strong>Save</strong> gombot.</li>
+        <li>Térj vissza a <strong>Reader</strong> oldalra: indíthatsz lejátszást, előre generálhatod a fejezet hangját, vagy megnyithatod az <strong>Export</strong> panelt.</li>
+      </ol>
+    </section>
+
+    <section class="docs-section docs-section-tinted" id="voices">
+      <div class="docs-section-heading"><span class="docs-section-index">02</span><div>
+        <h2>Narrátorhangok</h2><p>A hangtár a Settings tetején található. A szintetikus és a referenciahangok külön listában jelennek meg, de ugyanúgy választhatók ki egy könyvhöz.</p>
+      </div></div>
+      <div class="docs-two-column"><div><h3>Szintetikus hang</h3><ul class="docs-check-list">
+        <li>Írj magyar szöveget a <strong>Text to read</strong> mezőbe. A <strong>Preview</strong> új hangjelöltet készít ebből a szövegből; a <strong>Try another variation</strong> másik jelölt kipróbálására szolgál.</li>
+        <li>Hallgasd meg a jelöltet, adj neki nevet, és csak ezután válaszd a <strong>Save candidate</strong> gombot. A mentett WAV és annak pontos szövege rögzíti a hangot a későbbi felolvasásokhoz.</li>
+      </ul></div><div><h3>Referenciahang</h3><ul class="docs-check-list">
+        <li>Tölts fel tiszta, egyszereplős, lehetőleg 3–10 másodperces magyar WAV-ot. Az <strong>Exact words spoken in the WAV</strong> mezőbe pontosan a felvételen elhangzó szavak kerüljenek.</li>
+        <li>A <strong>Text to read in preview</strong> külön mező: az ide beírt szöveget olvassa fel az előnézet, nem a WAV átiratát. A <strong>Reset to default</strong> visszaállítja a próbamondatot.</li>
+      </ul></div></div>
+      <ul class="docs-check-list">
+        <li>A nem, korjelleg, hangfekvés és akcentus <strong>utólagos címke és keresőszűrő</strong>. Nem vezérli a Higgs hanggenerálását, és nem garantál adott hangkaraktert.</li>
+        <li>A <strong>Saved voices</strong> listában a hangok meghallgathatók, szerkeszthetők, törölhetők, illetve <code>.aurisvoice</code> fájlként exportálhatók és importálhatók. Mentett hang szerkesztése az azt használó könyvek érintett hangszegmenseinek újragenerálását igényli.</li>
+        <li>Csak olyan azonosítható személy hangját használd referenciaként, aki ehhez hozzájárult. A hangok összekeverése önmagában nem tesz egy felismerhető hangot jogtisztává.</li>
+      </ul>
+    </section>
+
+    <section class="docs-section docs-engine-section" id="higgs">
+      <div class="docs-section-heading"><span class="docs-section-index">03</span><div>
+        <h2>Higgs TTS 3 — 4B</h2><p>Az Auris Studio jelenlegi, kizárólagos beszédmotorja. A korábban vizsgált kísérleti modellek nem választhatók az alkalmazásban.</p>
       </div></div>
       <div class="docs-two-column"><div><h3>Apple Silicon</h3><ul class="docs-check-list">
-        <li>Az Auto backend M-szériás Macen a natív MLX útvonalat választja.</li>
-        <li>A kijelentések kötegben készülnek a nagy áteresztőképességért.</li>
-        <li>A kérdések külön referenciaággal készülhetnek a természetesebb hanglejtésért.</li>
-        <li>A modell külön <code>.mlx_runtime</code> környezetben fut.</li>
-      </ul></div><div><h3>Kompatibilitási backend</h3><ul class="docs-check-list">
-        <li>Más platformokon az Auto a Transformers workert használja.</li>
-        <li>A modell külön processzben fut és a Reload TTS engine művelettel újratölthető.</li>
-        <li>A Stop megszakítja a futó workert; a következő generálás újraindítja.</li>
+        <li>A <strong>Backend → Auto</strong> M-szériás Macen a natív MLX útvonalat választja. A modell külön <code>.mlx_runtime</code> környezetben fut.</li>
+        <li>A kijelentések kötegben készülhetnek; a <strong>Hybrid question reference</strong> bekapcsolva külön ágon kezeli a kérdéseket a természetesebb hanglejtésért. A kérdésreferencia első előállítása egyszeri időt vehet igénybe.</li>
+        <li>Az <strong>MLX narration batch size</strong> alapértéke 5; memóriahiánynál csökkenthető. Első használatkor a modell letöltése és betöltése hosszabb lehet.</li>
+      </ul></div><div><h3>Kompatibilitás</h3><ul class="docs-check-list">
+        <li>Más platformokon az <strong>Auto</strong> a Transformers útvonalat választja. Ez kompatibilitási lehetőség; a projekt elsődleges célplatformja az Apple Silicon.</li>
+        <li>A <strong>Reload TTS engine</strong> a Settingsben újratölti a beszédmotort, például backend- vagy modellbeállítás módosítása után.</li>
+        <li>A hangjelölt, az előnézet és a könyvfelolvasás minősége a referenciától és a szövegtől is függ; a címkék nem helyettesítik a meghallgatásos ellenőrzést.</li>
       </ul></div></div>
     </section>
-    <section class="docs-section" id="voices"><div class="docs-section-heading"><span class="docs-section-index">02</span><div><h2>Narrátorhangok</h2></div></div>
-      <ul class="docs-check-list"><li>A Settings tetején szintetikus hangjelöltet készíthetsz és menthetsz, vagy referencia-WAV-ot tölthetsz fel saját néven.</li>
-        <li>Használj tiszta, egyszereplős, lehetőleg magyar referenciahangot.</li>
-        <li>A WAV pontos átirata betű szerint egyezzen a felvételen elhangzó beszéddel. A külön „Text to read in preview” mezőbe azt írd, amit a hanggal felolvastatnál. Mentett hangnál nyisd ki a hang kártyáját: ott, közvetlenül a Preview gomb fölött van a saját próbamondata.</li>
-        <li>A könyv Voice Studiójában csak mentett hangot választhatsz. A próbaszöveget szerkesztheted és visszaállíthatod; a Preview gomb lejátszás közben Stopra vált.</li>
-        <li>Az előnézet, a felolvasás és az export ugyanazt a kiválasztott hangot használja.</li>
-        <li>Azonosítható hangot csak a beszélő engedélyével klónozz.</li></ul>
+
+    <section class="docs-section docs-section-tinted" id="hungarian">
+      <div class="docs-section-heading"><span class="docs-section-index">04</span><div>
+        <h2>Magyar felolvasás</h2><p>A magyar szövegkezelés a TTS-nek átadott szöveget készíti elő; a könyvben látható eredeti szöveg nem íródik át.</p>
+      </div></div>
+      <ul class="docs-check-list">
+        <li>A <strong>Normalize numbers before speech</strong> beállítás a számokat és többek között az évszámokat, dátumokat, időpontokat, sorszámokat és pénzösszegeket a felolvasáshoz alakítja át. Egyedi, kétértelmű alakokat érdemes próbaként meghallgatni.</li>
+        <li>A kijelentéseket és kérdéseket a rendszer külön mondatszegmensként kezeli. A hibrid MLX kérdésreferencia javíthatja a kérdő hanglejtést, de nem garantál minden szövegnél tökéletes prozódiát.</li>
+        <li>Magyar akcentushoz a magyarul beszélő referenciahang és a pontos magyar átirat különösen fontos. Szintetikus hangnál generálj több jelöltet, és a meghallgatott, jól ejtő hangot mentsd el.</li>
+      </ul>
     </section>
-    <section class="docs-section docs-section-tinted" id="hungarian"><div class="docs-section-heading"><span class="docs-section-index">03</span><div><h2>Magyar szövegkezelés</h2></div></div>
-      <ul class="docs-check-list"><li>A saját normalizáló feloldja a számokat, évszámokat, dátumokat, időpontokat, sorszámokat, mértékegységeket és pénznemeket.</li>
-        <li>A normalizálás a Higgs raw és expressive prompt útvonalán is használható.</li>
-        <li>A kiejtési szabályok a megjelenített könyvszöveg módosítása nélkül alkalmazhatók.</li>
-        <li>A kérdések és kijelentések külön mondatszegmensként maradnak meg.</li></ul>
+
+    <section class="docs-section" id="reading">
+      <div class="docs-section-heading"><span class="docs-section-index">05</span><div>
+        <h2>Olvasás és export</h2><p>A könyv Voice Studiójában elmentett hangot használja a Reader és az export is.</p>
+      </div></div>
+      <ul class="docs-check-list">
+        <li>A Readerben válassz fejezetet, majd a bal alsó <strong>Play</strong> gombbal indítsd a felolvasást. Egy bekezdésre kattintva az olvasás onnan folytatható; a <strong>Generate chapter</strong> előre elkészíti a fejezet hangját.</li>
+        <li>Az <strong>Export</strong> panelen az aktuális vagy a kiválasztott fejezeteket kérheted. A fejezetszámokhoz <code>all</code>, <code>2-6</code> vagy <code>1,3,7-10</code> formátum használható.</li>
+        <li>A hangkimenet <strong>WAV</strong> vagy — telepített ffmpeg mellett — <strong>MP3</strong>; az egynarrátoros felirat <strong>SRT</strong>. A fejezetek külön fájlokba vagy 1–4 összefűzött részbe kerülhetnek. M4B-export jelenleg nincs.</li>
+        <li>Egyszerre egy export futhat. Folyamatjelző mutatja a könyv és az aktuális fejezet állapotát; a munka szüneteltethető, folytatható és leállítható.</li>
+        <li>A hangot befolyásoló beállítás vagy a mentett hang módosítása után az érintett szegmensek újragenerálódnak. A Settingsben a beszédszünetek, az MP3-kódolás és az opcionális stúdiómasztering is állítható.</li>
+      </ul>
     </section>
-    <section class="docs-section" id="export"><div class="docs-section-heading"><span class="docs-section-index">04</span><div><h2>Lejátszás, export és cache</h2></div></div>
-      <ul class="docs-check-list"><li>WAV és ffmpeg használatával MP3 vagy fejezetes M4B készíthető.</li>
-        <li>A lejátszás és export ugyanazt a referenciahangot, normalizálást és cache-kulcsot használja.</li>
-        <li>A hangot befolyásoló beállítás módosítása érvényteleníti az érintett szegmenseket.</li>
-        <li>Apple Siliconon a kötegméret a Higgs MLX beállításai között szabályozható.</li></ul>
-    </section>
-    <section class="docs-section docs-section-tinted" id="troubleshooting"><div class="docs-section-heading"><span class="docs-section-index">05</span><div><h2>Hibaelhárítás</h2></div></div>
+
+    <section class="docs-section docs-section-tinted" id="troubleshooting">
+      <div class="docs-section-heading"><span class="docs-section-index">06</span><div><h2>Hibaelhárítás</h2></div></div>
       <div class="faq-list">
-        <details><summary>A modell még nem kész</summary><div><p>Várd meg a <strong>ready</strong> állapotot. Első indításkor a modell letöltése és betöltése hosszabb lehet.</p></div></details>
-        <details><summary>A magyar kiejtés angolos</summary><div><p>Ellenőrizd a könyv nyelvét, kapcsold be a számnormalizálást, használj magyar referenciahangot és pontos magyar átiratot.</p></div></details>
-        <details><summary>Elfogy a memória</summary><div><p>Zárj be más GPU-igényes alkalmazásokat, csökkentsd az MLX batch méretét, majd töltsd újra a TTS motort.</p></div></details>
-        <details><summary>Régi hang hallatszik</summary><div><p>A könyv Voice Studiójában válaszd ki és mentsd a kívánt hangtári profilt. A hangváltás az érintett könyv hangszegmenseit újrageneráltatja; szükség esetén frissítsd a böngészőt.</p></div></details>
+        <details><summary>Nem indul a könyv felolvasása</summary><div><p>Előbb ments egy hangot a Settings hangtárában, majd a könyv Voice Studiójában válaszd ki és nyomd meg a <strong>Save</strong> gombot. Ezután térj vissza a Readerhez, és indítsd a lejátszást.</p></div></details>
+        <details><summary>A modell még nem kész</summary><div><p>Várd meg a <strong>ready</strong> állapotot. Első indításkor a modell letöltése és betöltése hosszabb lehet. Ellenőrizd a Settingsben a modell forrását; ha szükséges, használd a <strong>Reload TTS engine</strong> gombot.</p></div></details>
+        <details><summary>A Preview nem a várt szöveget mondja</summary><div><p>A referencia-WAV átirata nem a próbaszöveg. A Settingsben a <strong>Text to read in preview</strong>, a mentett hang kártyáján a saját előnézeti mező, a könyvnél pedig a Voice Studio próbaszövege határozza meg, mit olvas fel az adott Preview.</p></div></details>
+        <details><summary>A magyar kiejtés vagy a kérdés hanglejtése gyenge</summary><div><p>Ellenőrizd a számnormalizálást, a referencia-WAV minőségét és annak pontos magyar átiratát. Szintetikus hangból hallgass meg több jelöltet. Apple Siliconon ellenőrizd, hogy a <strong>Hybrid question reference</strong> be van-e kapcsolva.</p></div></details>
+        <details><summary>Régi hang hallatszik</summary><div><p>A könyv Voice Studiójában válaszd ki és mentsd a kívánt hangtári profilt. A hangváltás után az érintett hangszegmensek újragenerálódnak; szükség esetén frissítsd a böngészőt.</p></div></details>
+        <details><summary>Elfogy a memória vagy lassú a generálás</summary><div><p>Zárj be más GPU-igényes alkalmazásokat, Apple Siliconon csökkentsd az <strong>MLX narration batch size</strong> értékét, majd töltsd újra a TTS motort. A kisebb batch kevesebb memóriát igényelhet, de lassíthat.</p></div></details>
       </div>
     </section>
   </main>

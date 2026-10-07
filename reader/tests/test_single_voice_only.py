@@ -104,6 +104,12 @@ class SingleVoiceOnlyTest(unittest.TestCase):
         page = self.client.get('/docs').data
         self.assertNotIn('Helyi LLM beállítása'.encode('utf-8'), page)
         self.assertNotIn('Karakterfelismerés'.encode('utf-8'), page)
+        for section in ('start', 'voices', 'higgs', 'hungarian', 'reading', 'troubleshooting'):
+            self.assertIn(f'href="#{section}"'.encode(), page)
+            self.assertIn(f'id="{section}"'.encode(), page)
+        self.assertIn(b'/settings#voice-library', page)
+        self.assertIn(b'.aurisvoice', page)
+        self.assertIn(b'M4B-export', page)
 
 
 if __name__ == '__main__':

@@ -51,7 +51,9 @@ helyi snapshot is választható a Settingsben. A Backend maradhat **Auto**
 2. **Reader** — lejátszás bármely mondattól; a fejezet hangja előre is legenerálható.
 3. **Settings → Narrator voice library** — magyar próbamondatból több szintetikus hangjelölt generálható és a meghallgatott jelölt saját néven menthető. Referencia-WAV (3–10 másodperc, egy beszélő) és pontos átirat is menthető. A referenciahangnál külön mezőbe kerül a WAV-ban elhangzó pontos szöveg és a próbaként felolvastatni kívánt szöveg; a hang mentés előtt előnézetben kipróbálható. A két hangtípus külön listában és külön `reader/data/voices/synthetic/`, illetve `reader/data/voices/reference/` mappában él. A négy régi jellemző (nem, korjelleg, hangfekvés, akcentus) a meghallgatott hangok szerkeszthető címkéje és a mentett listák működő szűrője; a Higgsnek nem adnak nem létező, garantált hangtervezési parancsot. A hangok átnevezhetők, átiratuk és WAV-juk/jelöltjük cserélhető, törölhetők, valamint `.aurisvoice` fájlba exportálhatók és visszatölthetők.
 4. **Könyv → Voice Studio** — a könyvhöz kizárólag a Settingsben mentett szintetikus vagy referenciahang választható. Az előnézeti szöveg itt szerkeszthető, alaphelyzetbe állítható és a könyvhöz menthető; a Preview gomb lejátszás közben Stopra vált. A felolvasás és az export ugyanazt a rögzített hangprofilt használja; mentett hang nélkül új hang nem generálódik.
-5. **Export** — a felső sávból nyíló panelen (`E` billentyű) fejezetek MP3-ba felirattal, `all`, `2-6` vagy `1,3,7-10` formában.
+5. **Export** — a felső sávból nyíló panelen (`E` billentyű) az aktuális vagy kiválasztott fejezetek WAV/MP3 hanggal és SRT felirattal, `all`, `2-6` vagy `1,3,7-10` formában. MP3-hoz ffmpeg szükséges; M4B-export jelenleg nincs.
+
+A böngészős **Docs** menü részletes, lépésről lépésre követhető útmutatót ad a hangtárhoz, a könyvenkénti hangválasztáshoz, a magyar felolvasáshoz, az Apple Silicon/MLX backendhez, a lejátszáshoz, az exporthoz és a hibaelhárításhoz. A Docs a futó alkalmazásban a `/docs` címen érhető el; a felület szövege a [reader/templates/docs.html](reader/templates/docs.html) fájlban él.
 
 ## Miben más az Auris Studio?
 
