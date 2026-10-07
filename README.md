@@ -67,7 +67,7 @@ Az Auris Studio teljes egészében **egynarrátoros felolvasásra** van hangolva
 
 ### Hangminőség
 
-Az MLX hibrid útvonal a kijelentéseket kötegben generálja, a kérdéseket pedig külön referenciaággal készíti. Így a gyors kötegelt feldolgozás mellett megmarad a természetesebb magyar kérdő hanglejtés.
+Az MLX hibrid útvonal a kijelentéseket kötegben generálja, a kérdéseket pedig külön referenciaággal készíti. A magyar kérdő hanglejtés minősége továbbra is fejlesztési feladat: az ER Sno hanggal több kérdésreferenciás, felhasználó által kedvezőnek ítélt **helyi próba** készült, de ez még nincs bekötve az alkalmazásba. A nyelvi célokat és a tesztpárokat a [kérdő hanglejtés követelménye](docs/hungarian-question-intonation.md), a kiválasztott próbamintát a [kísérleti napló](docs/question-prosody-2026-10-07.md) rögzíti.
 
 ### Természetes felolvasás
 
