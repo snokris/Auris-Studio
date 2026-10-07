@@ -1,8 +1,8 @@
 """Native Apple Silicon Higgs TTS 3 backend with hybrid batching.
 
 Ordinary narration uses MLX-Audio's batch path for throughput. Questions are
-rendered sequentially with a 24 kHz mono, shortened-gap variant of the narrator's
-own recording. No synthetic question is fed back into the model as a reference.
+rendered sequentially, using saved same-speaker question WAVs when the voice
+has them; otherwise the existing shortened-gap reference path remains.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ import soundfile as sf
 
 from core.cache_identity import reference_identity
 from core.higgs_engine import HiggsTTSEngine, _setting
+from core.question_references import load_question_references
 from core.tts_common import AUDIO_CACHE_DIR, SAMPLE_RATE, _write_audio_atomic
 
 
@@ -260,7 +261,8 @@ class HiggsMLXEngine(HiggsTTSEngine):
             log.info("Higgs MLX worker: %s", line.rstrip())
 
     def _cache_key_for_item(
-        self, item: dict, question: bool, question_reference: str | None
+        self, item: dict, question: bool, question_reference: str | None,
+        question_references: list[dict[str, str]] | None = None,
     ) -> str:
         normalize = item.get("normalize_text")
         if normalize is None:
@@ -277,11 +279,20 @@ class HiggsMLXEngine(HiggsTTSEngine):
             seed_override=item.get('seed_override'),
         )
         source, _ = self._source()
+        multi_reference_identity = (
+            tuple(
+                (reference_identity(ref["audio"]), hashlib.sha256(ref["text"].encode()).hexdigest())
+                for ref in question_references
+            )
+            if question_references else None
+        )
         payload = (
             f"{base}|mlx_model={source}|question={int(question)}|"
             f"qref={reference_identity(question_reference)!r}|"
             f"batch={self._batch_size()}"
         )
+        if multi_reference_identity is not None:
+            payload += f"|multi_qref={multi_reference_identity!r}"
         return hashlib.md5(payload.encode("utf-8")).hexdigest()
 
     @staticmethod
@@ -406,16 +417,18 @@ class HiggsMLXEngine(HiggsTTSEngine):
             self._generating.set()
             try:
                 with self._lock:
-                    response = self._rpc_raw(
-                        {
-                            "command": "generate",
-                            "prompt": self._prompt_for_item(item),
-                            "reference_audio": entry["question_reference"],
-                            "reference_text": entry["question_reference_text"],
-                            "output_path": temp_path,
-                            "generation": self._generation_payload(item.get('seed_override')),
-                        }
-                    )
+                    payload = {
+                        "command": "generate",
+                        "prompt": self._prompt_for_item(item),
+                        "output_path": temp_path,
+                        "generation": self._generation_payload(item.get('seed_override')),
+                    }
+                    if entry["question_references"]:
+                        payload["references"] = entry["question_references"]
+                    else:
+                        payload["reference_audio"] = entry["question_reference"]
+                        payload["reference_text"] = entry["question_reference_text"]
+                    response = self._rpc_raw(payload)
             finally:
                 self._generating.clear()
             if not response.get("ok"):
@@ -480,7 +493,11 @@ class HiggsMLXEngine(HiggsTTSEngine):
             question = hybrid and _is_question(item.get("text") or "")
             question_reference = None
             question_reference_text = item.get("ref_text")
-            if question and item.get("ref_audio"):
+            question_references = (
+                load_question_references(item.get("ref_audio"), item.get("ref_text"))
+                if question else None
+            )
+            if question and item.get("ref_audio") and not question_references:
                 question_reference, question_reference_text = (
                     self._question_voice_reference(
                         item["ref_audio"],
@@ -489,7 +506,7 @@ class HiggsMLXEngine(HiggsTTSEngine):
                     )
                 )
             cache_key = self._cache_key_for_item(
-                item, question, question_reference
+                item, question, question_reference, question_references
             )
             cache_path = self.cache_path(cache_key)
             if os.path.isfile(cache_path):
@@ -511,6 +528,7 @@ class HiggsMLXEngine(HiggsTTSEngine):
                 "cache_key": cache_key,
                 "question_reference": question_reference,
                 "question_reference_text": question_reference_text,
+                "question_references": question_references,
             }
             if question:
                 questions.append(entry)

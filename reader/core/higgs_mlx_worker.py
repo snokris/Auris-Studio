@@ -100,15 +100,27 @@ def _load_model(request: dict) -> dict:
 
 
 def _generate_one(request: dict) -> dict:
-    codes = _reference_codes(request.get("reference_audio"))
-    result = next(
-        _model.generate(
-            text=request["prompt"],
-            ref_audio_codes=codes,
-            ref_text=request.get("reference_text"),
-            **_generation(request),
+    references = request.get("references")
+    if references:
+        codes = [_reference_codes(ref["audio"]) for ref in references]
+        result = next(
+            _model.generate(
+                text=request["prompt"],
+                ref_audio_codes_list=codes,
+                ref_texts=[ref["text"] for ref in references],
+                **_generation(request),
+            )
         )
-    )
+    else:
+        codes = _reference_codes(request.get("reference_audio"))
+        result = next(
+            _model.generate(
+                text=request["prompt"],
+                ref_audio_codes=codes,
+                ref_text=request.get("reference_text"),
+                **_generation(request),
+            )
+        )
     return {"ok": True, "result": _write_result(result, request["output_path"])}
 
 

@@ -56,7 +56,7 @@
       </div></div>
       <div class="docs-two-column"><div><h3>Apple Silicon</h3><ul class="docs-check-list">
         <li>A <strong>Backend → Auto</strong> M-szériás Macen a natív MLX útvonalat választja. A modell külön <code>.mlx_runtime</code> környezetben fut.</li>
-        <li>A kijelentések kötegben készülhetnek; a <strong>Hybrid question reference</strong> bekapcsolva külön ágon kezeli a kérdéseket. Ehhez a narrátor eredeti WAV-jából készül egy változat, amelyben legfeljebb egy túl hosszú belső szünet rövidül; géppel generált kérdést már nem használunk második referenciának.</li>
+        <li>A kijelentések kötegben készülhetnek; a <strong>Hybrid question reference</strong> bekapcsolva külön ágon kezeli a kérdéseket. Az ER Sno mentett hanghoz két külön, ugyanazon hangú kérdésminta van elmentve, ezért ott a kérdések három referenciával készülnek. Más hangoknál a narrátor eredeti WAV-jának legfeljebb egy túl hosszú belső szünetében rövidített változata marad a kérdésreferencia.</li>
         <li>Az <strong>MLX narration batch size</strong> alapértéke 5; memóriahiánynál csökkenthető. Első használatkor a modell letöltése és betöltése hosszabb lehet.</li>
       </ul></div><div><h3>Kompatibilitás</h3><ul class="docs-check-list">
         <li>Más platformokon az <strong>Auto</strong> a Transformers útvonalat választja. Ez kompatibilitási lehetőség; a projekt elsődleges célplatformja az Apple Silicon.</li>
