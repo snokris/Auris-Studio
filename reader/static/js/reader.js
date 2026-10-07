@@ -1362,19 +1362,27 @@ async function initExportPanelState() {
     const st = await fetch(`/api/books/${BOOK_ID}/export/state`).then(r => r.json());
     const status = document.getElementById('export-status');
     if (st.prefs) {
-      const m = document.querySelector(`input[name="exp-mode"][value="${st.prefs.mode}"]`);
-      if (m) { m.checked = true; m.dispatchEvent(new Event('change')); }
       const a = document.querySelector(`input[name="exp-audio"][value="${st.prefs.audio_fmt}"]`);
       if (a) a.checked = true;
       const s = document.querySelector(`input[name="exp-sub"][value="${st.prefs.sub_fmt}"]`);
       if (s) s.checked = true;
-      if (st.prefs.chapters) {
+      if (st.prefs.mode === 'chapterwise' && st.prefs.chapters !== 'all' && st.prefs.chapters) {
         document.getElementById('exp-chapters').value = st.prefs.chapters;
       }
     }
     // Per-book prefs win; a book that was never exported starts from Settings.
     const join = st.prefs && st.prefs.join_parts !== undefined
       ? st.prefs : (st.join_defaults || {});
+    const scope = st.prefs
+      ? (st.prefs.mode === 'chapterwise'
+        ? (String(st.prefs.chapters || '').trim().toLowerCase() === 'all' ? 'all' : 'selected')
+        : (st.prefs.mode === 'full' ? 'all' : 'chapter'))
+      : (join.join_parts ? 'all' : 'chapter');
+    const scopeInput = document.querySelector(`input[name="exp-mode"][value="${scope}"]`);
+    if (scopeInput) {
+      scopeInput.checked = true;
+      scopeInput.dispatchEvent(new Event('change'));
+    }
     const joinBox = document.getElementById('exp-join');
     const partsInput = document.getElementById('exp-parts');
     if (joinBox) joinBox.checked = !!join.join_parts;
@@ -1418,8 +1426,8 @@ async function initExportPanelState() {
 }
 initExportPanelState();
 
-// Joining is a whole-book operation, so it only applies to a multi-chapter
-// scope; the slider only matters once joining is on.
+// Joining applies to either multi-chapter scope; the slider matters only when
+// joining is on.
 function _syncJoinControls() {
   const modeInput = document.querySelector('input[name="exp-mode"]:checked');
   const mode = modeInput ? modeInput.value : 'chapter';
@@ -1429,7 +1437,7 @@ function _syncJoinControls() {
   const partsInput = document.getElementById('exp-parts');
   const partsValue = document.getElementById('exp-parts-value');
   if (!section || !joinBox || !wrap || !partsInput) return;
-  section.classList.toggle('hidden', mode !== 'chapterwise');
+  section.classList.toggle('hidden', mode === 'chapter');
   wrap.classList.toggle('hidden', !joinBox.checked);
   if (partsValue) {
     const n = Number(partsInput.value) || 1;
@@ -1441,7 +1449,7 @@ document.querySelectorAll('input[name="exp-mode"]').forEach(input => {
   input.addEventListener('change', () => {
     const selected = document.querySelector('input[name="exp-mode"]:checked').value;
     document.getElementById('chapter-selection-wrap')
-      .classList.toggle('hidden', selected !== 'chapterwise');
+      .classList.toggle('hidden', selected !== 'selected');
     _syncJoinControls();
   });
 });
@@ -1453,9 +1461,16 @@ document.querySelectorAll('input[name="exp-mode"]').forEach(input => {
 _syncJoinControls();
 
 async function startExport() {
-  if (!currentChapterId) { showToast('Open a chapter first.'); return; }
-
   const mode      = document.querySelector('input[name="exp-mode"]:checked').value;
+  if (mode === 'chapter' && !currentChapterId) {
+    showToast('Open a chapter first.');
+    return;
+  }
+  const selectedChapters = document.getElementById('exp-chapters').value.trim();
+  if (mode === 'selected' && !selectedChapters) {
+    showToast('Enter the chapter numbers to export.');
+    return;
+  }
   const audioFmt  = document.querySelector('input[name="exp-audio"]:checked').value;
   const subInput  = document.querySelector('input[name="exp-sub"]:checked');
   const subFmt    = subInput ? subInput.value : 'srt';
@@ -1471,8 +1486,8 @@ async function startExport() {
   }
 
   let url;
-  if (mode === 'chapter')          url = `/api/books/${BOOK_ID}/export/chapter/${currentChapterId}`;
-  else                             url = `/api/books/${BOOK_ID}/export/chapterwise`;
+  if (mode === 'chapter') url = `/api/books/${BOOK_ID}/export/chapter/${currentChapterId}`;
+  else url = `/api/books/${BOOK_ID}/export/chapterwise`;
 
   const fail = (msg, locked) => {
     _exportBusy = false;
@@ -1483,7 +1498,7 @@ async function startExport() {
 
   const joinBox = document.getElementById('exp-join');
   const partsInput = document.getElementById('exp-parts');
-  const joinParts = mode === 'chapterwise' && !!(joinBox && joinBox.checked);
+  const joinParts = mode !== 'chapter' && !!(joinBox && joinBox.checked);
 
   const postExport = () => fetch(url, {
     method: 'POST',
@@ -1491,9 +1506,7 @@ async function startExport() {
     body: JSON.stringify({
       audio_fmt: audioFmt,
       sub_fmt: subFmt,
-      chapters: mode === 'chapterwise'
-        ? document.getElementById('exp-chapters').value
-        : null,
+      chapters: mode === 'all' ? 'all' : (mode === 'selected' ? selectedChapters : null),
       join_parts: joinParts,
       part_count: joinParts ? (Number(partsInput && partsInput.value) || 1) : 1,
     }),

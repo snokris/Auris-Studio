@@ -138,6 +138,14 @@ class ChapterGenerationApiTest(unittest.TestCase):
         self.assertEqual(chapters[0]["audio_ready"], 3)
         self.assertEqual(chapters[0]["audio_total"], 3)
 
+    def test_export_scope_shows_chapter_all_and_selected_options(self):
+        page = self.client.get("/reader/1")
+        self.assertEqual(page.status_code, 200)
+        for scope in (b'"chapter"', b'"all"', b'"selected"'):
+            self.assertIn(b'name="exp-mode" value=' + scope, page.data)
+        self.assertIn(b'id="exp-chapters"', page.data)
+        self.assertIn(b'id="exp-join"', page.data)
+
 
 class _CancelRecordingTTS:
     def __init__(self):
