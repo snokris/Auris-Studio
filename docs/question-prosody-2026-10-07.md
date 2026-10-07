@@ -72,3 +72,22 @@ A természetességről emberi meghallgatás dönt. Rövid, hosszú, kérdőszava
 érdemes kipróbálni. Ha egy adott hang továbbra is kijelentésszerű,
 a legjobb következő bemenet ugyanattól a beszélőtől származó, természetesen
 kimondott kérdést is tartalmazó WAV és annak pontos átirata.
+
+### Meghallgatási visszajelzés és finomabb próba
+
+A felhasználó a fenti, rövidített referenciás hosszú magyar mintában is
+**túl késői, az utolsó szótag felé csúszó emelkedést** hallott. Ez fontos
+korrekció: az utolsó/első negyed f0-aránya nem mondja meg, melyik szótagra
+esik a dallamcsúcs. A v5 útvonal ezért akusztikai szempontból még nem
+tekinthető véglegesnek; az alkalmazás alap-seedje változatlan.
+
+Azonos szöveggel, referenciával és generálási beállítással csak a seedet
+változtatva további, helyi, Gitből kizárt minták készültek. A becsült
+f0-csúcs a hosszú kérdésnél a jelenlegi 123-as seedhez képest a 42-es
+és 211-es mintában korábbra került; ez sem helyettesíti a szótagpontos
+fülpróbát.
+
+| Szöveg | Jelenlegi 123 | 42-es jelölt | 211-es jelölt |
+|---|---|---|---|
+| Hosszú magyar kérdés | [123](../reader/audio_cache/benchmarks/question-audit-20261007/hu_long-tight.wav) | [42](../reader/audio_cache/benchmarks/question-seeds-20261007/long-seed-42.wav) | [211](../reader/audio_cache/benchmarks/question-seeds-20261007/long-seed-211.wav) |
+| Rövid magyar kérdés | [123](../reader/audio_cache/benchmarks/question-audit-20261007/hu_short-tight.wav) | [42](../reader/audio_cache/benchmarks/question-seeds-20261007/short-seed-42.wav) | [211](../reader/audio_cache/benchmarks/question-seeds-20261007/short-seed-211.wav) |
