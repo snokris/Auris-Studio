@@ -27,7 +27,7 @@ Nyisd meg a <http://127.0.0.1:7860> címet. Az indító terminálban a `Ctrl+C` 
 2. A **Settings → Narrator voice library** részben készíts és ments egy hangot. Szintetikus hangnál magyar próbaszövegből több jelöltet hallgathatsz meg; referenciahangnál tiszta, egybeszélős WAV és a felvétel **pontos átirata** kell. A próbaként felolvastatott szöveg külön mező, nem azonos a WAV átiratával.
 3. Nyisd meg a könyv **Voice Studio** oldalát, válassz egy **mentett** hangot, próbáld ki saját szöveggel, majd mentsd a könyvhöz. Mentett hang kiválasztása nélkül a könyv hangja nem generálható.
 4. A **Reader** bal alsó Play gombjával indul a felolvasás. Bekezdésre kattintva onnan folytatható; a fejezet hangja előre is generálható.
-5. Az **Export** panelen az aktuális vagy kiválasztott fejezetek WAV/MP3 hangként és SRT feliratként menthetők. A fejezetválasztás például `all`, `2-6` vagy `1,3,7-10` lehet; 1–4 összefűzött MP3-rész is kérhető. MP3-hoz ffmpeg kell, M4B-export jelenleg nincs.
+5. Az **Export → Scope** részen külön választható az aktuális fejezet (**This chapter**), a teljes könyv (**All chapters**) vagy néhány fejezet (**Selected chapters**, például `2-6` vagy `1,3,7-10`). Több fejezetnél az összefűzés kapcsolójával 1–4 WAV/MP3 fájl és hozzájuk illeszkedő SRT felirat kérhető; kikapcsolva fejezetenkénti fájlok készülnek. MP3-hoz ffmpeg kell, M4B-export jelenleg nincs.
 
 A részletes, képernyőn követhető útmutató a futó alkalmazás **Docs** menüjében vagy a `/docs` címen található.
 
