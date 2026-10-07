@@ -1,8 +1,8 @@
 """Native Apple Silicon Higgs TTS 3 backend with hybrid batching.
 
 Ordinary narration uses MLX-Audio's batch path for throughput. Questions are
-rendered sequentially with a cached question reference derived from the
-narrator's own recording.
+rendered sequentially with a 24 kHz mono, shortened-gap variant of the narrator's
+own recording. No synthetic question is fed back into the model as a reference.
 """
 
 from __future__ import annotations
@@ -22,19 +22,17 @@ import soundfile as sf
 
 from core.cache_identity import reference_identity
 from core.higgs_engine import HiggsTTSEngine, _setting
-from core.parser.hungarian_prosody import QUESTION_REFERENCE_TEXT, is_hungarian_language
 from core.tts_common import AUDIO_CACHE_DIR, SAMPLE_RATE, _write_audio_atomic
 
 
 log = logging.getLogger(__name__)
 
 MLX_MARKER = "AURIS_STUDIO_HIGGS_MLX_JSON:"
-MLX_HYBRID_VERSION = 4
+MLX_HYBRID_VERSION = 5
 DEFAULT_MLX_REPO = "bosonai/higgs-tts-3-4b"
 DEFAULT_MLX_BATCH_SIZE = 5
-HUNGARIAN_QUESTION_REFERENCE_SEED = 7
 _QUESTION_END_RE = re.compile(
-    r"\?[\s\"'”’»)\]]*(?:\[[^\]]+\]\s*)*$", re.UNICODE
+    r"\?[!…]*[\s\"'”’»)\]]*(?:\[[^\]]+\]\s*)*$", re.UNICODE
 )
 
 
@@ -331,76 +329,15 @@ class HiggsMLXEngine(HiggsTTSEngine):
         ref_text: str | None,
         language: str | None,
     ) -> tuple[str, str | None]:
-        """Return a real question reference with a matching transcript.
+        """Use the narrator's own voice, without synthetic prosody feedback.
 
-        Shortening the long pause in a declarative reference improved one
-        listening-test sentence, but it still teaches the model declarative
-        prosody.  For Hungarian voices, synthesize one short canonical question
-        from that tight reference and reuse it as the reference for subsequent
-        questions.  The original recording is never modified.
+        A fixed-seed model-generated question proved unreliable: depending on
+        the voice, it could end with a falling contour, which biased the
+        subsequent questions. The original WAV and its transcript
+        stay intact; only one excessive internal silence may be shortened.
         """
-        tight_reference = _question_reference_path(ref_audio)
-        if not is_hungarian_language(language):
-            return tight_reference, ref_text
-
-        source, _ = self._source()
-        identity = (
-            MLX_HYBRID_VERSION,
-            reference_identity(ref_audio),
-            str(ref_text or ""),
-            source,
-            self._generation_payload(),
-            HUNGARIAN_QUESTION_REFERENCE_SEED,
-        )
-        digest = hashlib.sha256(repr(identity).encode("utf-8")).hexdigest()
-        directory = Path(AUDIO_CACHE_DIR) / "higgs_mlx_question_refs"
-        directory.mkdir(parents=True, exist_ok=True)
-        output = directory / f"{digest}-hu-question.wav"
-        if output.is_file():
-            return str(output), QUESTION_REFERENCE_TEXT
-
-        temp_path = self._temp_wav()
-        try:
-            self._generating.set()
-            try:
-                with self._lock:
-                    if output.is_file():
-                        return str(output), QUESTION_REFERENCE_TEXT
-                    generation = self._generation_payload()
-                    generation["seed"] = HUNGARIAN_QUESTION_REFERENCE_SEED
-                    response = self._rpc_raw(
-                        {
-                            "command": "generate",
-                            "prompt": self._prompt(
-                                QUESTION_REFERENCE_TEXT,
-                                None,
-                                1.0,
-                                "hu",
-                                True,
-                            ),
-                            "reference_audio": tight_reference,
-                            "reference_text": ref_text,
-                            "output_path": temp_path,
-                            "generation": generation,
-                        }
-                    )
-                    if not response.get("ok"):
-                        raise RuntimeError(
-                            response.get("error")
-                            or "MLX question-reference generation failed"
-                        )
-                    audio, sample_rate = sf.read(temp_path, dtype="float32")
-                    _write_audio_atomic(
-                        str(output), np.asarray(audio, dtype=np.float32), sample_rate
-                    )
-            finally:
-                self._generating.clear()
-        finally:
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
-        return str(output), QUESTION_REFERENCE_TEXT
+        del language
+        return _question_reference_path(ref_audio), ref_text
 
     def _store_worker_output(
         self, temp_path: str, cache_key: str, cache_hit: bool = False

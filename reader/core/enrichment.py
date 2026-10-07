@@ -35,7 +35,7 @@ _SECTION_HEADING_RE = re.compile(
 )
 
 _SHORT_ALL_CAPS_RE = re.compile(r"^[A-Z0-9][A-Z0-9 '&,:;.-]{1,80}$")
-_QUESTION_RE = re.compile(r'\?\s*["\u201d]?\s*$')
+_QUESTION_RE = re.compile(r'\?[!\u2026]*\s*["\u201d\u00bb]?\s*$')
 _SURPRISE_RE = re.compile(r'!\s*["\u201d]?\s*$')
 _SHOCKED_QUESTION_END_RE = re.compile(r'\?!\s*["\u201d]?\s*$')
 
@@ -382,9 +382,21 @@ def _restore_sentence_boundaries(text: str) -> str:
 def _split_paragraph_sentences(paragraph: str) -> list[str]:
     protected = _protect_sentence_boundaries(paragraph)
     protected = re.sub(
-        r'([.!?]["\u201d]?)\s+(?=(?:["\u201c]?[A-Z0-9]))',
+        r'([.!?]+["\u201d\u00bb]?)\s+(?=(?:["\u201c\u201e\u00ab]?[A-ZÁÉÍÓÖŐÚÜŰ0-9]))',
         rf"\1{_SPLIT}",
         protected,
+    )
+    # Keep an utterance ending in ? separate from the following attribution.
+    # Otherwise “Eljössz?” – kérdezte. becomes one period-ending segment, so
+    # the Higgs question path never sees the question (the same applies to
+    # “Are you coming?” he asked.).
+    protected = re.sub(
+        r'(\?[!\u2026]*["\u201d\u00bb]?)\s+(?=(?:[-\u2013\u2014]\s*|'
+        r'(?:he|she|they)\s+(?:asked|wondered|inquired)\b|'
+        r'(?:kérdez\w*|kérdi|tudakol\w*|faggat\w*)\b))',
+        rf"\1{_SPLIT}",
+        protected,
+        flags=re.IGNORECASE,
     )
     parts = [_restore_sentence_boundaries(part).strip() for part in protected.split(_SPLIT)]
     return [part for part in parts if part]
@@ -481,10 +493,6 @@ def _has_dialogue(text: str) -> bool:
 def _should_merge_sentences(buffer: str, sentence: str) -> bool:
     if not buffer or not sentence:
         return False
-    if _has_dialogue(buffer) and _ATTRIBUTION_SENTENCE_RE.match(sentence):
-        return True
-    if _ATTRIBUTION_SENTENCE_RE.match(buffer) and _has_dialogue(sentence):
-        return True
     if (
         _QUESTION_RE.search(buffer)
         or _SURPRISE_RE.search(buffer)
@@ -492,6 +500,10 @@ def _should_merge_sentences(buffer: str, sentence: str) -> bool:
         or _SURPRISE_RE.search(sentence)
     ):
         return False
+    if _has_dialogue(buffer) and _ATTRIBUTION_SENTENCE_RE.match(sentence):
+        return True
+    if _ATTRIBUTION_SENTENCE_RE.match(buffer) and _has_dialogue(sentence):
+        return True
     if _has_dialogue(buffer) != _has_dialogue(sentence):
         return False
     buffer_hu = analyze_hungarian_prosody(buffer)

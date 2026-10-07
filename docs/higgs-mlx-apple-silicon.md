@@ -118,3 +118,11 @@ tagolás csak a Higgs akusztikai promptjában él.
 - A teljes alkalmazáspróbában a modell 4,27 másodperc alatt betöltött, a normál
   preview és egy valós kérdés generálása is sikeres volt.
 - A kérdésreferenciás változat teljes automatizált tesztkészlete 288/288 zöld.
+
+**Frissítés (2026-10-07):** A fenti kérdésreferenciás rész a korábbi v4 út
+történeti leírása, nem az aktuális működés. A v5 már nem használ
+géppel generált „Vajon visszatér még?” referenciát; a rövidített eredeti WAV
+és annak pontos átirata kerül közvetlenül a kérdésgenerálásba. A kérdés
+utáni közbevetéseket is külön szegmensre választjuk. A diagnózis, a
+háromutas helyi próba és a korlátok a
+[kérdőmondat-auditban](question-prosody-2026-10-07.md) olvashatók.
