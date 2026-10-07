@@ -2,7 +2,7 @@
 
 Helyben futó, **egynarrátoros hangoskönyv-olvasó és -készítő** magyar szövegekhez. EPUB-, PDF- és TXT-könyvet importál, a fejezeteket szerkeszthetővé teszi, felolvassa őket, majd WAV/MP3 hangot és SRT feliratot exportál. A cél a természetes magyar kiejtés és hanglejtés, valamint a gyors generálás Apple Silicon Macen.
 
-A projekt a [mp3pintyo/Auris](https://github.com/mp3pintyo/Auris) forkja. A jelenlegi Auris Studio **Higgs TTS 3 — 4B** modellt használ; Apple Siliconon az MLX a fő útvonal. Nem tartalmazza az upstream összes, főleg Windowsra és többszereplős hangjátékra épülő funkcióját. A korábban kipróbált OmniVoice és VibeVoice nincs az alkalmazásban.
+A projekt a [mp3pintyo/Auris](https://github.com/mp3pintyo/Auris) forkja. A jelenlegi Auris Studio **Higgs TTS 3 — 4B** modellt használ; Apple Siliconon az MLX a fő útvonal. Nem tartalmazza az upstream összes, főleg Windowsra és többszereplős hangjátékra épülő funkcióját. 
 
 ## Gyors kezdés Apple Silicon Macen
 
